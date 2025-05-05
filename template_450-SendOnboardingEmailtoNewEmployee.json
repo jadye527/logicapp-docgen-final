@@ -1,0 +1,477 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_100_EntraID_Powershell_DelegateMailbox_name": {
+            "defaultValue": "100-EntraID-Powershell-DelegateMailbox",
+            "type": "String"
+        },
+        "automationAccounts___encodeURIComponent__wd_eus_prod_lifecycle_workflow____externalid": {
+            "defaultValue": "/subscriptions/@{encodeURIComponent('a9360cdd-bae2-448e-ae6e-0d0a1300c218')}/resourceGroups/@{encodeURIComponent('rk-eus-prod-rg-citinf')}/providers/Microsoft.Automation/automationAccounts/@{encodeURIComponent('wd-eus-prod-lifecycle-workflow')}",
+            "type": "String"
+        },
+        "connections_azureautomation_2_externalid": {
+            "defaultValue": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/azureautomation-2",
+            "type": "String"
+        },
+        "connections_office365_2_externalid": {
+            "defaultValue": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/office365-2",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_100_EntraID_Powershell_DelegateMailbox_name')]",
+            "location": "eastus",
+            "tags": {
+                "Purpose": "Azure AD Lifecycle Workflows"
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "Manager.Mail": {
+                            "defaultValue": "Jason.Dye@rehlko.com",
+                            "type": "String"
+                        },
+                        "Subject.Email": {
+                            "defaultValue": "max.blackone@rehlko.com",
+                            "type": "String"
+                        },
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "manual": {
+                            "type": "Request",
+                            "kind": "Http",
+                            "inputs": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "callbackUriPath": {
+                                                    "description": "CallbackUriPath used for Resume Action",
+                                                    "title": "Data.CallbackUriPath",
+                                                    "type": "string"
+                                                },
+                                                "subject": {
+                                                    "properties": {
+                                                        "displayName": {
+                                                            "description": "DisplayName of the Subject",
+                                                            "title": "Subject.DisplayName",
+                                                            "type": "string"
+                                                        },
+                                                        "email": {
+                                                            "description": "Email of the Subject",
+                                                            "title": "Subject.Email",
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "description": "Id of the Subject",
+                                                            "title": "Subject.Id",
+                                                            "type": "string"
+                                                        },
+                                                        "manager": {
+                                                            "properties": {
+                                                                "displayName": {
+                                                                    "description": "DisplayName parameter for Manager",
+                                                                    "title": "Manager.DisplayName",
+                                                                    "type": "string"
+                                                                },
+                                                                "email": {
+                                                                    "description": "Mail parameter for Manager",
+                                                                    "title": "Manager.Mail",
+                                                                    "type": "string"
+                                                                },
+                                                                "id": {
+                                                                    "description": "Id parameter for Manager",
+                                                                    "title": "Manager.Id",
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "userPrincipalName": {
+                                                            "description": "UserPrincipalName of the Subject",
+                                                            "title": "Subject.UserPrincipalName",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "task": {
+                                                    "properties": {
+                                                        "displayName": {
+                                                            "description": "DisplayName for Task Object",
+                                                            "title": "Task.DisplayName",
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "description": "Id for Task Object",
+                                                            "title": "Task.Id",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "taskProcessingResult": {
+                                                    "properties": {
+                                                        "createdDateTime": {
+                                                            "description": "CreatedDateTime for TaskProcessingResult Object",
+                                                            "title": "TaskProcessingResult.CreatedDateTime",
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "description": "Id for TaskProcessingResult Object",
+                                                            "title": "TaskProcessingResult.Id",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "workflow": {
+                                                    "properties": {
+                                                        "displayName": {
+                                                            "description": "DisplayName for Workflow Object",
+                                                            "title": "Workflow.DisplayName",
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "description": "Id for Workflow Object",
+                                                            "title": "Workflow.Id",
+                                                            "type": "string"
+                                                        },
+                                                        "workflowVerson": {
+                                                            "description": "WorkflowVersion for Workflow Object",
+                                                            "title": "Workflow.WorkflowVersion",
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "source": {
+                                            "description": "Context in which an event happened",
+                                            "title": "Request.Source",
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "description": "Value describing the type of event related to the originating occurrence.",
+                                            "title": "Request.Type",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Create_job": {
+                            "runAfter": {},
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['azureautomation']['connectionId']"
+                                    }
+                                },
+                                "method": "put",
+                                "body": {
+                                    "properties": {
+                                        "parameters": {
+                                            "userEmail": "@triggerBody()?['data']?['subject']?['email']",
+                                            "ManagerMail": "@triggerBody()?['data']?['subject']?['manager']?['email']",
+                                            "WorkflowRunId": "@triggerBody()?['data']?['workflow']?['id']"
+                                        }
+                                    }
+                                },
+                                "path": "[concat(parameters('automationAccounts___encodeURIComponent__wd_eus_prod_lifecycle_workflow____externalid'), '/jobs')]",
+                                "queries": {
+                                    "x-ms-api-version": "2015-10-31",
+                                    "runbookName": "DelegateMaillbox",
+                                    "wait": true
+                                }
+                            }
+                        },
+                        "Get_status_of_job": {
+                            "runAfter": {
+                                "Create_job": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['azureautomation']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "[concat(parameters('automationAccounts___encodeURIComponent__wd_eus_prod_lifecycle_workflow____externalid'), '/jobs/@{encodeURIComponent(body(''Create_job'')?[''properties'']?[''jobId''])}')]",
+                                "queries": {
+                                    "x-ms-api-version": "2015-10-31"
+                                }
+                            }
+                        },
+                        "HTTP_1": {
+                            "runAfter": {
+                                "Get_status_of_job": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Http",
+                            "inputs": {
+                                "uri": "https://management.azure.com/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Automation/automationAccounts/wd-eus-prod-lifecycle-workflow/jobs/@{body('Create_job')?['properties']?['jobId']}/output?api-version=2015-10-31",
+                                "method": "GET",
+                                "authentication": {
+                                    "type": "ManagedServiceIdentity",
+                                    "audience": "https://management.azure.com"
+                                }
+                            },
+                            "runtimeConfiguration": {
+                                "contentTransfer": {
+                                    "transferMode": "Chunked"
+                                }
+                            }
+                        },
+                        "Parse_JSON": {
+                            "runAfter": {
+                                "HTTP_1": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ParseJson",
+                            "inputs": {
+                                "content": "@body('HTTP_1')",
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "output": {
+                                            "type": "object",
+                                            "properties": {
+                                                "delegation": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "details": {
+                                                            "type": "string"
+                                                        },
+                                                        "success": {
+                                                            "type": "boolean"
+                                                        }
+                                                    }
+                                                },
+                                                "mailboxConversion": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "details": {
+                                                            "type": "string"
+                                                        },
+                                                        "success": {
+                                                            "type": "boolean"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "code": {
+                                                        "type": "string"
+                                                    },
+                                                    "message": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "workflowRunId": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "Condition": {
+                            "actions": {
+                                "HTTP-Workflow-Failed": {
+                                    "runAfter": {
+                                        "Send_an_email_from_a_shared_mailbox_(V2)": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Http",
+                                    "inputs": {
+                                        "uri": "https://graph.microsoft.com/v1.0@{triggerBody()?['data']?['callbackUriPath']}",
+                                        "method": "POST",
+                                        "body": {
+                                            "data": {
+                                                "operationStatus": "@{body('Parse_JSON')?['status']}"
+                                            },
+                                            "source": "azureAutomation",
+                                            "type": "lifecycleEvent"
+                                        },
+                                        "authentication": {
+                                            "audience": "https://graph.microsoft.com",
+                                            "type": "ManagedServiceIdentity"
+                                        }
+                                    }
+                                },
+                                "Send_an_email_from_a_shared_mailbox_(V2)": {
+                                    "runAfter": {
+                                        "Compose_1": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['office365']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "body": {
+                                            "MailboxAddress": "svc_lifecycleworkflow@rehlko.com",
+                                            "To": "jdye@bdo.com;adaeger@bdo.com;fgoetz@bdo.com;dl-IAM-team@rehlko.com",
+                                            "Subject": "Delegation Lifecycle Failed for user - @{triggerBody()?['data']?['subject']?['displayName']}.",
+                                            "Body": "<p class=\"editor-paragraph\">@{outputs('Compose_1')}</p>",
+                                            "Importance": "Normal"
+                                        },
+                                        "path": "/v2/SharedMailbox/Mail"
+                                    }
+                                },
+                                "Compose_1": {
+                                    "type": "Compose",
+                                    "inputs": "<div style=\"font-family: Arial, sans-serif; max-width: 650px;\">\n<h2 style=\"color: #d9534f;\">Mailbox Delegation Failed</h2>\n\n<div style=\"background-color: #f8f8f8; padding: 15px; border-left: 4px solid #d9534f; margin-bottom: 20px;\">\n<p><strong>User:</strong> @{triggerBody()?['data']?['subject']?['displayName']}</p>\n<p><strong>Email:</strong> @{triggerBody()?['data']?['subject']?['email']}</p>\n<p><strong>Manager:</strong> @{triggerBody()?['data']?['subject']?['manager']?['displayName']}</p>\n<p><strong>Status:</strong> @{body('Parse_JSON')?['status']}</p>\n</div>\n\n<h3>Operation Results</h3>\n\n<table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n<tr style=\"background-color: #f2f2f2;\">\n<th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Operation</th>\n<th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Status</th>\n<th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Details</th>\n</tr>\n<tr>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">Mailbox Conversion</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{if(body('Parse_JSON')?['output']?['mailboxConversion']?['success'], 'Success', 'Failed')}</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{body('Parse_JSON')?['output']?['mailboxConversion']?['details']}</td>\n</tr>\n<tr>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">Manager Delegation</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{if(body('Parse_JSON')?['output']?['delegation']?['success'], 'Success', 'Failed')}</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{body('Parse_JSON')?['output']?['delegation']?['details']}</td>\n</tr>\n</table>\n\n<h3>Error Details</h3>\n<div style=\"background-color: #fff0f0; padding: 15px; border-left: 4px solid #d9534f;\">\n<pre style=\"white-space: pre-wrap; font-family: Consolas, monospace;\">@{variables('ErrorMessages')}</pre>\n</div>\n\n<p style=\"margin-top: 20px; color: #777; font-size: 12px; border-top: 1px solid #eee; padding-top: 10px;\">\nThis is an automated message from the Lifecycle Workflow System. Please do not reply to this email.\nFor assistance, please contact the IT Support team.\n</p>\n</div>"
+                                }
+                            },
+                            "runAfter": {
+                                "For_each": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "else": {
+                                "actions": {
+                                    "HTTP-Workflow-Completed": {
+                                        "type": "Http",
+                                        "inputs": {
+                                            "uri": "https://graph.microsoft.com/v1.0@{triggerBody()?['data']?['callbackUriPath']}",
+                                            "method": "POST",
+                                            "body": {
+                                                "data": {
+                                                    "operationStatus": "@{body('Parse_JSON')?['status']}"
+                                                },
+                                                "source": "azureAutomation",
+                                                "type": "lifecycleEvent"
+                                            },
+                                            "authentication": {
+                                                "audience": "https://graph.microsoft.com",
+                                                "type": "ManagedServiceIdentity"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "equals": [
+                                            "@body('Parse_JSON')?['status']",
+                                            "Failed"
+                                        ]
+                                    }
+                                ]
+                            },
+                            "type": "If"
+                        },
+                        "For_each": {
+                            "foreach": "@outputs('Compose')",
+                            "actions": {
+                                "Append_to_string_variable": {
+                                    "type": "AppendToStringVariable",
+                                    "inputs": {
+                                        "name": "ErrorMessages",
+                                        "value": "ErrorCode: @{items('For_each')?['code']}<br>\nMessage: @{items('For_each')?['message']}<br>\n"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Initialize_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "Initialize_variable": {
+                            "runAfter": {
+                                "Compose": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "ErrorMessages",
+                                        "type": "string"
+                                    }
+                                ]
+                            }
+                        },
+                        "Compose": {
+                            "runAfter": {
+                                "Parse_JSON": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Compose",
+                            "inputs": "@coalesce(body('Parse_JSON')?['errors'], createArray())\n"
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "azureautomation": {
+                                "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/azureautomation",
+                                "connectionId": "[parameters('connections_azureautomation_2_externalid')]",
+                                "connectionName": "azureautomation-2",
+                                "connectionProperties": {
+                                    "authentication": {
+                                        "type": "ManagedServiceIdentity"
+                                    }
+                                }
+                            },
+                            "office365": {
+                                "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/office365",
+                                "connectionId": "[parameters('connections_office365_2_externalid')]",
+                                "connectionName": "office365-2"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
