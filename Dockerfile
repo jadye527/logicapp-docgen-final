@@ -12,4 +12,4 @@ COPY . /app
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "cli.py", "--template", "template.json", "--output", "LogicApp_Documentation.docx", "--docx_template", "template.docx"]
+CMD ["python", "cli.py", "--template", "template.json", "--parameters", "parameters.json", "--docx_template", "template.docx"]

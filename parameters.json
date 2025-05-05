@@ -1,0 +1,18 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_100_EntraID_Powershell_DelegateMailbox_name": {
+            "value": null
+        },
+        "automationAccounts___encodeURIComponent__wd_eus_prod_lifecycle_workflow____externalid": {
+            "value": null
+        },
+        "connections_azureautomation_2_externalid": {
+            "value": null
+        },
+        "connections_office365_2_externalid": {
+            "value": null
+        }
+    }
+}
