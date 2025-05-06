@@ -1,4 +1,6 @@
 
+import subprocess
+
 import json
 from docx import Document
 from docx.shared import Inches

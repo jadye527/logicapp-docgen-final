@@ -1,21 +1,11 @@
 
 from docx import Document
 from docx.shared import Inches
-from logicapp_docgen.diagram_builder import build_logic_app_flow_dot
 import graphviz
 import os
 import json
 from logicapp_docgen import parser
 
-def generate_flow_diagram_png(workflow_structure, run_after, output_dir="output"):
-    dot_text = build_logic_app_flow_dot(workflow_structure, run_after)
-    dot_file = os.path.join(output_dir, "LogicAppFlow.dot")
-    png_file = os.path.join(output_dir, "LogicAppFlow.png")
-    os.makedirs(output_dir, exist_ok=True)
-    with open(dot_file, "w") as f:
-        f.write(dot_text)
-    graphviz.Source(dot_text).render(filename=png_file.replace(".png", ""), format="png", cleanup=True)
-    return png_file
 
 def generate_document(architecture, execution, flow_text, data_flow, hybrid_text, conditions):
     arm = architecture.get("arm", {})
@@ -66,13 +56,13 @@ def generate_document(architecture, execution, flow_text, data_flow, hybrid_text
 
     doc.add_heading("1.5 Logic App Flow Diagram", level=2)
     try:
-        wf = parser.extract_workflow_structure(arm)
-        run_after = parser.extract_run_after_mapping(wf["action_details"])
-        png_path = generate_flow_diagram_png(wf, run_after)
-        doc.add_picture(png_path, width=Inches(6.0))
-        last_paragraph = doc.paragraphs[-1]
-        last_paragraph.alignment = 1
-        doc.add_paragraph("Figure 1: Azure Logic App Flow Diagram", style="Caption")
+        flow_png = os.path.join("output", "LogicAppFlow.png")
+        if os.path.exists(flow_png):
+            doc.add_picture(flow_png, width=Inches(6.0))
+            doc.paragraphs[-1].alignment = 1
+            doc.add_paragraph("Figure 1: Azure Logic App Flow Diagram", style="Caption")
+        else:
+            doc.add_paragraph("❌ Could not render Logic App Flow Diagram.")
     except Exception as e:
         doc.add_paragraph("❌ Could not render Logic App Flow Diagram.")
 
