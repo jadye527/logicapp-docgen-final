@@ -196,3 +196,32 @@ def generate_hybrid_diagram(services, output_file="hybrid_integration_diagram_pr
         dot.node(svc, svc, fillcolor=fill)
         dot.edge("LogicApp", svc)
     dot.render(filename=output_file, cleanup=True)
+
+
+
+import json
+import os
+from logicapp_docgen import parser
+from logicapp_docgen.generate_docx import generate_document
+
+def generate_document_from_arm(template_path, output_path):
+    with open(template_path, "r") as f:
+        arm = json.load(f)
+
+    # Extract workflow structure and metadata
+    wf = parser.extract_workflow_structure(arm)
+    run_after = parser.extract_run_after_mapping(wf["action_details"])
+    architecture = parser.extract_architecture_metadata(arm)
+    execution = parser.extract_execution_flow_steps(wf["actions"], run_after)
+    flow_text = parser.describe_flow_diagram_text(wf["action_details"], run_after)
+    data_flow = parser.describe_data_flow_text(wf["action_details"])
+    services = parser.extract_services(arm)
+    hybrid_text = parser.describe_hybrid_integration_text(services)
+    conditions = parser.extract_condition_branches(wf["action_details"])
+
+    # Generate document
+    doc = generate_document(architecture, execution, flow_text, data_flow, hybrid_text, conditions)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    doc.save(output_path)
+    return output_path
