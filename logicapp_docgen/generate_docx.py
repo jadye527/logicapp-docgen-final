@@ -1,93 +1,101 @@
 
 from docx import Document
+from docx.shared import Inches
+from logicapp_docgen.diagram_builder import build_logic_app_flow_dot
+import graphviz
+import os
+import json
+from logicapp_docgen import parser
 
-def generate_document(architecture, execution_steps, flow_diagram_text, data_flow_text, hybrid_text, condition_branches):
-    doc = Document()
-    doc.add_heading('AZURE LOGIC APP WORKFLOW – MAILBOX DELEGATION', 0)
+def generate_flow_diagram_png(workflow_structure, run_after, output_dir="output"):
+    dot_text = build_logic_app_flow_dot(workflow_structure, run_after)
+    dot_file = os.path.join(output_dir, "LogicAppFlow.dot")
+    png_file = os.path.join(output_dir, "LogicAppFlow.png")
+    os.makedirs(output_dir, exist_ok=True)
+    with open(dot_file, "w") as f:
+        f.write(dot_text)
+    graphviz.Source(dot_text).render(filename=png_file.replace(".png", ""), format="png", cleanup=True)
+    return png_file
 
-    doc.add_heading('1.1 Overview', level=1)
+def generate_document(architecture, execution, flow_text, data_flow, hybrid_text, conditions):
+    arm = architecture.get("arm", {})
+    logic_app_name = architecture.get("name", "LogicApp")
+    region = architecture.get("location", "unknown")
+    resource_group = architecture.get("resource_group", "n/a")
+    subscription_id = architecture.get("subscription_id", "n/a")
+    automation_account = architecture.get("automation_account", "n/a")
+    tags = architecture.get("tags", {})
+
+    doc = Document("template.docx")
+
+    doc.add_heading("1 Azure Logic App Workflow – Mailbox Delegation", level=1)
+
+    doc.add_heading("1.1 Overview", level=2)
     doc.add_paragraph(
         "This document provides an end-to-end overview of the Azure Logic App used for automated mailbox delegation. "
-        "It explains the integration with lifecycle workflows, supporting systems, and failure handling mechanisms for "
-        "email and callback processes. This solution is designed to streamline mailbox access provisioning and reduce manual intervention."
+        "It explains the integration with lifecycle workflows, supporting systems, and failure handling mechanisms. "
+        "This solution is designed to streamline mailbox access provisioning and reduce manual intervention."
     )
 
-    doc.add_heading('1.2 Purpose and Function', level=1)
-    doc.add_heading('1.2.1 KEY RESPONSIBILITIES:', level=2)
-    for step in execution_steps:
-        doc.add_paragraph(step.replace("Step: ", "• "), style='List Bullet')
+    doc.add_heading("1.2 Purpose and Function", level=2)
+    doc.add_heading("1.2.1 Key Responsibilities:", level=3)
+    for item in execution:
+        doc.add_paragraph(item, style='Bullets')
 
-    doc.add_heading('1.3 Architecture Overview', level=1)
-    doc.add_heading('1.3.1 DEPLOYMENT METADATA:', level=2)
-    arch_keys = [
-        ("Logic App Name", architecture["name"]),
-        ("Resource Group", architecture["resource_group"]),
-        ("Subscription ID", architecture["subscription_id"]),
-        ("Location", architecture["location"]),
-        ("Automation Account", architecture["automation_account"]),
-        ("Tag - Purpose", architecture["tags"].get("Purpose", "N/A"))
-    ]
-    for label, value in arch_keys:
-        doc.add_paragraph(f"• {label}: {value}", style='List Bullet')
+    doc.add_heading("1.3 Architecture Overview", level=2)
+    doc.add_heading("1.3.1 Deployment Metadata:", level=3)
+    doc.add_paragraph(f"Logic App Name: {logic_app_name}", style='Bullets')
+    doc.add_paragraph(f"Resource Group: {resource_group}", style='Bullets')
+    doc.add_paragraph(f"Subscription ID: {subscription_id}", style='Bullets')
+    doc.add_paragraph(f"Location: {region}", style='Bullets')
+    doc.add_paragraph(f"Automation Account: {automation_account}", style='Bullets')
+    for k, v in tags.items():
+        doc.add_paragraph(f"Tag - {k}: {v}", style='Bullets')
 
-    doc.add_heading('1.3.2 ARCHITECTURE SUMMARY:', level=2)
-    summary_points = [
-        "Triggered by a Lifecycle Workflow via HTTP.",
-        "Parses metadata like subject and task details.",
-        "Calls Azure Automation to run a mailbox delegation script.",
-        "Parses job output to determine if the operation succeeded.",
-        "Sends callback to lifecycle workflow based on job result.",
-        "Failure path includes composing and sending an email notification."
-    ]
-    for point in summary_points:
-        doc.add_paragraph(f"• {point}", style='List Bullet')
+    doc.add_heading("1.3.2 Architecture Summary:", level=3)
+    doc.add_paragraph(
+        "This Logic App is built on a modular and event-driven integration pattern. It connects several Azure and Microsoft services "
+        "to handle a mailbox delegation scenario with minimal manual oversight."
+    )
+    for item in execution:
+        doc.add_paragraph(item, style='Bullets')
 
-    doc.add_heading('1.4 Execution Logic Summary', level=1)
-    for line in execution_steps:
-        doc.add_paragraph(f"• {line}", style='List Bullet')
+    doc.add_heading("1.4 Execution Logic Summary", level=2)
+    for item in execution:
+        doc.add_paragraph(item, style='Bullets')
 
-    doc.add_heading('1.5 Logic App Flow Diagram', level=1)
-    for line in flow_diagram_text:
-        doc.add_paragraph(line)
+    doc.add_heading("1.5 Logic App Flow Diagram", level=2)
+    try:
+        wf = parser.extract_workflow_structure(arm)
+        run_after = parser.extract_run_after_mapping(wf["action_details"])
+        png_path = generate_flow_diagram_png(wf, run_after)
+        doc.add_picture(png_path, width=Inches(6.0))
+        last_paragraph = doc.paragraphs[-1]
+        last_paragraph.alignment = 1
+        doc.add_paragraph("Figure 1: Azure Logic App Flow Diagram", style="Caption")
+    except Exception as e:
+        doc.add_paragraph("❌ Could not render Logic App Flow Diagram.")
 
-    doc.add_heading('1.6 Data Flow Diagram', level=1)
-    for line in data_flow_text:
-        doc.add_paragraph(line)
+    doc.add_heading("1.6 Data Flow Diagram", level=2)
+    for item in data_flow:
+        doc.add_paragraph(item, style='Bullets')
 
-    doc.add_heading('1.7 Hybrid Integration Diagram', level=1)
-    for line in hybrid_text:
-        doc.add_paragraph(line)
+    doc.add_heading("1.7 Hybrid Integration Diagram", level=2)
+    for item in hybrid_text:
+        doc.add_paragraph(item, style='Bullets')
 
-    doc.add_heading('1.8 Security and Authentication', level=1)
-    security_points = [
-        "Uses a System Assigned Managed Identity for secure access.",
-        "Authenticates with Azure Automation via OAuth 2.0 token.",
-        "Calls Microsoft Graph API using secure token-based HTTP requests.",
-        "Sends email from a shared Office 365 mailbox: svc_lifecycleworkflow@rehlko.com.",
-        "API connections use HTTPS and are secured with managed identities."
-    ]
-    for point in security_points:
-        doc.add_paragraph(f"• {point}", style='List Bullet')
+    doc.add_heading("1.8 Security and Authentication", level=2)
+    doc.add_paragraph("The Logic App uses token-based identity and secure channels to connect with Microsoft services.")
+    doc.add_paragraph("Includes system-assigned managed identity, secure OAuth tokens, and HTTPS for all APIs.")
 
-    doc.add_heading('1.9 Error Handling', level=1)
-    if condition_branches:
-        for name, branch in condition_branches.items():
-            doc.add_paragraph(f"If condition: {branch['expression']}")
-            doc.add_paragraph("If TRUE (Failure Path):", style='List Bullet')
-            for act in branch["if_true"]:
-                doc.add_paragraph(f"• {act}", style='List Bullet 2')
-            doc.add_paragraph("If FALSE (Success Path):", style='List Bullet')
-            for act in branch["if_false"]:
-                doc.add_paragraph(f"• {act}", style='List Bullet 2')
+    doc.add_heading("1.9 Error Handling", level=2)
+    for item in conditions:
+        doc.add_paragraph(item, style='Bullets')
 
-    doc.add_heading('1.10 Appendix: Integration Endpoints', level=1)
-    endpoints = [
-        "Azure Automation API: https://learn.microsoft.com/en-us/rest/api/automation/jobs",
-        "Office 365 Connector: https://learn.microsoft.com/en-us/connectors/office365/",
-        "Microsoft Graph API: https://learn.microsoft.com/en-us/graph/overview",
-        "Logic Apps Security: https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-securing-a-logic-app"
-    ]
-    for ep in endpoints:
-        doc.add_paragraph(f"• {ep}", style='List Bullet')
+    doc.add_heading("1.10 Appendix: Integration Endpoints", level=2)
+    doc.add_paragraph("Azure Automation API: https://learn.microsoft.com/en-us/rest/api/automation/jobs", style='Bullets')
+    doc.add_paragraph("Office 365 Connector: https://learn.microsoft.com/en-us/connectors/office365/", style='Bullets')
+    doc.add_paragraph("Microsoft Graph API: https://learn.microsoft.com/en-us/graph/overview", style='Bullets')
+    doc.add_paragraph("Logic Apps Security: https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-securing-a-logic-app", style='Bullets')
 
     return doc

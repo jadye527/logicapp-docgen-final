@@ -1,4 +1,3 @@
-
 import argparse
 import os
 from logicapp_docgen.core import generate_document_from_arm
@@ -14,7 +13,12 @@ def main():
     args = parser.parse_args()
 
     print(f"📄 Generating documentation from ARM template: {args.template}")
-    output_path = generate_document_from_arm(args.template, args.output)
+    output_path = generate_document_from_arm(
+        template_path=args.template,
+        output_path=args.output,
+        parameters_path=args.parameters,
+        docx_template_path=args.docx_template
+    )
     print(f"✅ Document created at: {output_path}")
 
 if __name__ == "__main__":

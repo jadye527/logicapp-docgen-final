@@ -204,7 +204,7 @@ import os
 from logicapp_docgen import parser
 from logicapp_docgen.generate_docx import generate_document
 
-def generate_document_from_arm(template_path, output_path):
+def generate_document_from_arm(template_path, output_path, parameters_path=None, docx_template_path=None):
     with open(template_path, "r") as f:
         arm = json.load(f)
 
