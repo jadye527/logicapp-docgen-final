@@ -3,6 +3,8 @@ import json
 from docx import Document
 from docx.shared import Inches
 from graphviz import Digraph
+from logicapp_docgen.utils import extract_services
+
 
 def resolve_logic_app_name(name_expr, arm, parameters):
     if name_expr.startswith("[parameters("):
@@ -92,6 +94,10 @@ def generate_document(template_path, output_path, docx_template, parameters_path
     triggers = definition.get("triggers", {})
 
     generate_flow_diagram(actions)
+    services = extract_services(arm)
+    print(f"🔍 Extracted services for diagrams: {services}")
+    generate_data_flow_diagram(services)
+    generate_hybrid_diagram(services)
 
     # OVERVIEW
     doc.add_heading("1. Overview", level=1)
@@ -132,7 +138,27 @@ def generate_document(template_path, output_path, docx_template, parameters_path
         if "runAfter" in action and any("Failure" in v for v in action["runAfter"].values()):
             doc.add_paragraph(f"{name} handles failure from another action", style="Bullets")
 
+    
+    try:
+        doc.add_heading("Flow Diagram", level=2)
+        doc.add_picture("flow_diagram_preview.png", width=Inches(6.0))
+    except Exception:
+        doc.add_paragraph("Flow diagram not available.")
+
+    try:
+        doc.add_heading("Data Flow Diagram", level=2)
+        doc.add_picture("data_flow_diagram_preview.png", width=Inches(6.0))
+    except Exception:
+        doc.add_paragraph("Data Flow diagram not available.")
+
+    try:
+        doc.add_heading("Hybrid Integration Diagram", level=2)
+        doc.add_picture("hybrid_integration_diagram_preview.png", width=Inches(6.0))
+    except Exception:
+        doc.add_paragraph("Hybrid Integration diagram not available.")
+    
     # APPENDIX
+
     doc.add_heading("7. Appendix", level=1)
     doc.add_paragraph("See Logic App designer for full visual configuration.")
     doc.add_paragraph("Generated automatically by Logic App Documentation Generator.")
@@ -144,3 +170,29 @@ def generate_document(template_path, output_path, docx_template, parameters_path
         doc.add_paragraph("Flow diagram not available.")
 
     doc.save(output_path)
+
+
+def generate_data_flow_diagram(services, output_file="data_flow_diagram_preview"):
+    dot = Digraph(comment="Data Flow", format="png")
+    dot.attr(rankdir="LR", fontname="Segoe UI")
+    dot.attr("node", shape="ellipse", style="filled", fillcolor="#f9f9c5", fontname="Segoe UI")
+    dot.node("LogicApp", "Logic App", shape="box", style="filled", fillcolor="#d0e0f0")
+    for svc in services:
+        dot.node(svc, svc)
+        dot.edge("LogicApp", svc)
+    dot.render(filename=output_file, cleanup=True)
+
+def generate_hybrid_diagram(services, output_file="hybrid_integration_diagram_preview"):
+    dot = Digraph(comment="Hybrid Integration", format='png')
+    dot.attr(rankdir='LR', fontname="Segoe UI")
+    dot.attr("node", shape="ellipse", style="filled", fontname="Segoe UI")
+    dot.node("LogicApp", "Logic App", shape="box", fillcolor="#d0e0f0")
+    for svc in services:
+        fill = "#ffd699"
+        if "Graph" in svc or "AzureAD" in svc:
+            fill = "#ccffcc"
+        elif "Automation" in svc:
+            fill = "#e6ccff"
+        dot.node(svc, svc, fillcolor=fill)
+        dot.edge("LogicApp", svc)
+    dot.render(filename=output_file, cleanup=True)
