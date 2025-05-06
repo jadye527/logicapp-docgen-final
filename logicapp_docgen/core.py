@@ -1,133 +1,146 @@
-# logicapp_docgen/core.py
-import os
+
 import json
-import re
 from docx import Document
-from docx.shared import Inches, Pt
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.shared import Inches
+from graphviz import Digraph
 
-def resolve_logic_app_name(name_value, arm, parameters):
-    if not isinstance(name_value, str) or not name_value.startswith("[parameters("):
-        return name_value
-    match = re.match(r"\[parameters\('([^']+)'\)\]", name_value)
-    if match:
-        param_key = match.group(1)
-        resolved = parameters.get("parameters", {}).get(param_key, {}).get("value")
-        if resolved:
-            return resolved
-        param_def = arm.get("parameters", {}).get(param_key, {})
-        default_val = param_def.get("defaultValue")
-        if default_val:
-            return default_val
-        fallback_name = param_key.replace("workflows_", "").replace("_name", "")
-        return fallback_name
-    return name_value
+def resolve_logic_app_name(name_expr, arm, parameters):
+    if name_expr.startswith("[parameters("):
+        param_key = name_expr.split("'")[1]
+        param_obj = parameters.get(param_key) or arm.get("parameters", {}).get(param_key)
+        return param_obj.get("value") or param_obj.get("defaultValue") or param_key
+    return name_expr
 
-def generate_document(template_path, output_path, docx_template="template.docx", parameters_path="parameters.json"):
-    try:
-        with open(template_path, "r") as f:
-            arm = json.load(f)
+def extract_services(arm):
+    services = set()
+    for res in arm.get("resources", []):
+        if res.get("type", "").startswith("Microsoft.Web/connections"):
+            conn_type = res.get("properties", {}).get("parameterValues", {}).get("connectionName", "")
+            if conn_type:
+                services.add(conn_type.split("-")[0].capitalize())
+    return sorted(services)
+
+def generate_bullets_from_actions(actions):
+    bullets = []
+    for name, action in actions.items():
+        kind = action.get("type", "")
+        bullets.append(f"{name}: {kind}")
+    return bullets
+
+def generate_flow_diagram(actions, output_file="flow_diagram_preview"):
+    dot = Digraph("LogicAppFlow", format="png")
+    dot.attr(compound="true", fontname="Segoe UI", fontsize="11", rankdir="TB")
+    dot.attr("node", fontname="Segoe UI", fontsize="10", shape="box", style="filled")
+
+    with dot.subgraph(name="cluster_lifecycle") as c:
+        c.attr(label="Lifecycle Workflow", color="#3399ff", fontcolor="black", style="dashed")
+        c.node("Start", "Lifecycle Workflow\nInitiates Logic App", fillcolor="#e6f2ff")
+        c.node("FailureCallback", "HTTP POST\nFailure Callback", fillcolor="#ffcccc")
+        c.node("SuccessCallback", "HTTP POST\nSuccess Callback", fillcolor="#ccffcc")
+
+    with dot.subgraph(name="cluster_logicapp") as c:
+        c.attr(label="Azure Logic App", color="#666666", fontcolor="black", style="dashed")
+        c.node("HTTPTrigger", "Manual Trigger\nHTTP Request", fillcolor="#d0e0f0")
+        c.node("ParseJSON", "Parse JSON Result", fillcolor="#ffedcc")
+        c.node("Condition", "Delegation Successful?", shape="diamond", fillcolor="#ffeeee")
+
+    with dot.subgraph(name="cluster_automation") as c:
+        c.attr(label="Azure Automation (via Logic App)", color="#00cc44", fontcolor="black", style="dashed")
+        c.node("CreateJob", "Create Job\nAzure Automation", fillcolor="#b3e6b3")
+        c.node("Runbook", "DelegateMailbox Runbook\nCheck mailbox\nDelegate to manager\nConvert to shared", fillcolor="#e6ccff")
+        c.node("GetStatus", "Get Job Status\nHTTP GET", fillcolor="#b3e6b3")
+
+    with dot.subgraph(name="cluster_o365") as c:
+        c.attr(label="Error Handling & O365 Email", color="#cc0000", fontcolor="black", style="dashed")
+        c.node("ComposeEmail", "Compose_1\nHTML Email Body", fillcolor="#fff2cc")
+        c.node("SendEmail", "Send Email\nOffice 365 Shared Mailbox", fillcolor="#ffd699")
+
+    dot.edge("Start", "HTTPTrigger")
+    dot.edge("HTTPTrigger", "CreateJob")
+    dot.edge("CreateJob", "Runbook")
+    dot.edge("Runbook", "GetStatus")
+    dot.edge("GetStatus", "ParseJSON")
+    dot.edge("ParseJSON", "Condition")
+    dot.edge("Condition", "ComposeEmail", label="Failure")
+    dot.edge("ComposeEmail", "SendEmail")
+    dot.edge("SendEmail", "FailureCallback")
+    dot.edge("Condition", "SuccessCallback", label="Success")
+
+    dot.render(filename=output_file, cleanup=True)
+
+def generate_document(template_path, output_path, docx_template, parameters_path=None):
+    with open(template_path) as f:
+        arm = json.load(f)
+    if parameters_path:
+        with open(parameters_path) as pf:
+            parameters = json.load(pf)
+    else:
         parameters = {}
-        if os.path.exists(parameters_path):
-            with open(parameters_path, "r") as pf:
-                parameters = json.load(pf)
 
-        logic_apps = [r for r in arm["resources"] if "/workflows" in r["type"]]
-        logic_app = logic_apps[0] if logic_apps else {}
-        name_raw = logic_app.get("name", "Unknown Logic App")
-        name = resolve_logic_app_name(name_raw, arm, parameters)
-        location = logic_app.get("location", "Unknown Location")
-        tags = logic_app.get("tags", {})
+    doc = Document(docx_template)
 
-        doc = Document(docx_template)
+    logic_app_res = [r for r in arm.get("resources", []) if "/workflows" in r.get("type", "")]
+    logic_app = logic_app_res[0] if logic_app_res else {}
+    name_raw = logic_app.get("name", "LogicApp")
+    logic_app_name = resolve_logic_app_name(name_raw, arm, parameters)
+    region = logic_app.get("location", "unknown")
+    tags = logic_app.get("tags", {})
+    tag_purpose = tags.get("Purpose", "Not defined")
 
-        def add_heading(doc, title, level=1):
-            doc.add_heading(title, level=level)
+    definition = logic_app.get("properties", {}).get("definition", {})
+    actions = definition.get("actions", {})
+    triggers = definition.get("triggers", {})
 
-        def add_paragraph(doc, text):
-            p = doc.add_paragraph(text)
-            p.style.font.size = Pt(11)
+    generate_flow_diagram(actions)
 
-        def add_bullet(doc, text):
-            p = doc.add_paragraph(style='Bullets')
-            run = p.add_run(text)
-            run.font.size = Pt(11)
+    # OVERVIEW
+    doc.add_heading("1. Overview", level=1)
+    doc.add_paragraph("This document provides an overview of the Azure Logic App including purpose, architecture, and execution flow.")
+    doc.add_paragraph(f"Logic App: {logic_app_name}")
+    doc.add_paragraph(f"Region: {region}")
+    doc.add_paragraph(f"Tag - Purpose: {tag_purpose}")
 
-        def add_diagram(doc, title, image_path, caption):
-            add_heading(doc, title, level=2)
-            if os.path.exists(image_path):
-                doc.add_picture(image_path, width=Inches(6))
-                doc.add_paragraph(caption).alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            else:
-                add_paragraph(doc, f"[Missing Diagram: {image_path}]")
+    # PURPOSE
+    doc.add_heading("2. Purpose", level=1)
+    doc.add_paragraph("This Logic App automates the following key tasks:")
+    for bullet in generate_bullets_from_actions(actions):
+        doc.add_paragraph(bullet, style="Bullets")
 
-        add_heading(doc, "Overview")
-        add_paragraph(doc, "This document summarizes the Logic App design, flow, and external integrations based on the provided ARM template.")
+    # ARCHITECTURE
+    doc.add_heading("3. Architecture", level=1)
+    doc.add_paragraph("This Logic App integrates with the following external services and components:")
+    for svc in extract_services(arm):
+        doc.add_paragraph(svc, style="Bullets")
 
-        add_heading(doc, "Purpose")
-        add_paragraph(doc, "The purpose of this Logic App is to support automated workflows for mailbox delegation and lifecycle events. Key functional steps include:")
-        for item in [
-            "Trigger workflow via HTTP from Lifecycle.",
-            "Execute Azure Automation runbook.",
-            "Evaluate job status and parse results.",
-            "Notify via Office 365 email on failure.",
-            "Post callback to lifecycle endpoint."
-        ]: add_bullet(doc, item)
+    # EXECUTION
+    doc.add_heading("4. Execution", level=1)
+    doc.add_paragraph("The Logic App follows this sequence of actions:")
+    for bullet in generate_bullets_from_actions(actions):
+        doc.add_paragraph(bullet, style="Bullets")
 
-        add_heading(doc, "Architecture")
-        add_paragraph(doc, "The Logic App architecture includes connections to multiple Azure services and Microsoft 365 components. Relevant configuration and metadata include:")
-        for item in [
-            f"Logic App: {name}",
-            f"Region: {location}"
-        ] + [f"Tag - {k}: {v}" for k, v in tags.items()]:
-            add_bullet(doc, item)
+    # SECURITY
+    doc.add_heading("5. Security", level=1)
+    doc.add_paragraph("This Logic App may include HTTP actions or identity-based connectors:")
+    for key in ["authentication", "authorization"]:
+        if key in definition:
+            doc.add_paragraph(f"Includes: {key}", style="Bullets")
 
-        add_heading(doc, "Execution")
-        add_paragraph(doc, "The following outlines the step-by-step execution path from the initiation to conclusion of the workflow:")
-        for item in [
-            "Start: Trigger from external HTTP request.",
-            "Call: Azure Automation to delegate mailbox.",
-            "Parse: Check JSON results for success/failure.",
-            "Notify: On failure, send email.",
-            "Callback: Send status to lifecycle API."
-        ]: add_bullet(doc, item)
+    # ERROR HANDLING
+    doc.add_heading("6. Error Handling", level=1)
+    doc.add_paragraph("Failure branches and conditions are defined as follows:")
+    for name, action in actions.items():
+        if "runAfter" in action and any("Failure" in v for v in action["runAfter"].values()):
+            doc.add_paragraph(f"{name} handles failure from another action", style="Bullets")
 
-        add_heading(doc, "Security")
-        add_paragraph(doc, "Security practices applied within the Logic App include identity management, encrypted connections, and restricted API access:")
-        for item in [
-            "Secure connections via HTTPS.",
-            "Managed Identity for Automation access.",
-            "OAuth tokens for Microsoft Graph API."
-        ]: add_bullet(doc, item)
+    # APPENDIX
+    doc.add_heading("7. Appendix", level=1)
+    doc.add_paragraph("See Logic App designer for full visual configuration.")
+    doc.add_paragraph("Generated automatically by Logic App Documentation Generator.")
 
-        add_heading(doc, "Error Handling")
-        add_paragraph(doc, "In the event of failed automation runs or parsing errors, the Logic App takes the following steps to gracefully manage failures:")
-        for item in [
-            "Branching logic to detect runbook failures.",
-            "Compose HTML email with failure summary.",
-            "Send failure alert via Office 365 connector.",
-            "Trigger failure callback endpoint."
-        ]: add_bullet(doc, item)
+    try:
+        doc.add_heading("Flow Diagram", level=2)
+        doc.add_picture("flow_diagram_preview.png", width=Inches(6.0))
+    except Exception:
+        doc.add_paragraph("Flow diagram not available.")
 
-        add_heading(doc, "Logic App Flow Diagram")
-        add_diagram(doc, "", "flow_diagram_preview.png", "Figure 1: Workflow Execution Flow")
-
-        add_heading(doc, "Data Flow Diagram")
-        add_diagram(doc, "", "data_flow_diagram_preview.png", "Figure 2: Data Flow Integration")
-
-        add_heading(doc, "Hybrid Integration Diagram")
-        add_diagram(doc, "", "hybrid_integration_diagram_preview.png", "Figure 3: Cloud & M365 Integration Map")
-
-        add_heading(doc, "Appendix")
-        add_paragraph(doc, "Helpful documentation and reference links related to Azure Logic Apps and integrated services:")
-        for item in [
-            "https://learn.microsoft.com/en-us/azure/logic-apps/",
-            "https://learn.microsoft.com/en-us/graph/",
-            "https://learn.microsoft.com/en-us/connectors/office365/"
-        ]: add_bullet(doc, item)
-
-        doc.save(output_path)
-        print(f"✅ Document saved to {output_path}")
-
-    except Exception as e:
-        print(f"❌ Error generating document: {e}")
+    doc.save(output_path)
