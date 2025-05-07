@@ -17,7 +17,7 @@ def main():
         template_path=args.template,
         output_path=args.output,
         parameters_path=args.parameters,
-        docx_template_path=args.docx_template
+        docx_template=args.docx_template
     )
     print(f"✅ Document created at: {output_path}")
 

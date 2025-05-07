@@ -1,0 +1,55 @@
+digraph LogicAppFlow {
+    compound=true fontname="Segoe UI" fontsize=11 rankdir=TB;
+    node [fontname="Segoe UI" fontsize=10 shape=box style=filled];
+    subgraph cluster_lifecycle {
+        color="#3399ff" fontcolor=black label="Lifecycle Workflow" style=dashed;
+        Start [label="Lifecycle Workflow
+Initiates Logic App", shape=box, fillcolor="#e6f2ff"];
+        SuccessCallback [label="HTTP POST
+Success Callback", shape=box, fillcolor="#ccffcc"];
+        FailureCallback [label="HTTP POST
+Failure Callback", shape=box, fillcolor="#ffcccc"];
+        HTTP_Workflow_Failed [label="HTTP-Workflow-Failed", shape=box, fillcolor="#d0e0f0"];
+        HTTP_Workflow_Completed [label="HTTP-Workflow-Completed", shape=box, fillcolor="#d0e0f0"];
+    }
+    subgraph cluster_logicapp {
+        color="#666666" fontcolor=black label="Azure Logic App" style=dashed;
+        HTTPTrigger [label="Manual Trigger
+HTTP Request", shape=box, fillcolor="#d0e0f0"];
+        HTTP_1 [label="HTTP 1", shape=box, fillcolor="#d0e0f0"];
+        Parse_JSON [label="Parse JSON", shape=box, fillcolor="#ffedcc"];
+        Condition [label="Condition", shape=diamond, fillcolor="#ffeeee"];
+        For_each [label="For each", shape=box, fillcolor="#ffe6cc"];
+        Initialize_variable [label="Initialize variable", shape=box, fillcolor="#f0f0f0"];
+        Condition [label="Delegation Successful?", shape=diamond, fillcolor="#ffeeee"];
+    }
+    subgraph cluster_automation {
+        color="#00cc44" fontcolor=black label="Azure Automation (via Logic App)" style=dashed;
+        Create_job [label="Create job", shape=box, fillcolor="#b3e6b3"];
+        Get_status_of_job [label="Get status of job", shape=box, fillcolor="#b3e6b3"];
+        Runbook [label="DelegateMailbox Runbook", shape=box, fillcolor="#e6ccff"];
+    }
+    subgraph cluster_o365 {
+        color="#cc0000" fontcolor=black label="Error Handling & O365 Email" style=dashed;
+        Compose [label="Compose", shape=box, fillcolor="#fff2cc"];
+        Send_an_email_from_a_shared_mailbox__V2_ [label="Send an email from a shared mailbox (V2)", shape=box, fillcolor="#ffd699"];
+        Compose_1 [label="Compose 1", shape=box, fillcolor="#fff2cc"];
+    }
+    Start -> HTTPTrigger;
+    HTTPTrigger -> Create_job;
+    Create_job -> Get_status_of_job;
+    Get_status_of_job -> HTTP_1;
+    HTTP_1 -> Parse_JSON;
+    For_each -> Condition;
+    Initialize_variable -> For_each;
+    Compose -> Initialize_variable;
+    Parse_JSON -> Compose;
+    Create_job -> Runbook;
+    Runbook -> Get_status_of_job;
+    Condition -> Compose_1 [label="Failure"];
+    Compose_1 -> Send_an_email_from_a_shared_mailbox__V2_;
+    Send_an_email_from_a_shared_mailbox__V2_ -> HTTP_Workflow_Failed;
+    HTTP_Workflow_Failed -> FailureCallback;
+    Condition -> HTTP_Workflow_Completed [label="Success"];
+    HTTP_Workflow_Completed -> SuccessCallback;
+}
