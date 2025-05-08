@@ -23,29 +23,44 @@ def get_fillcolor(action_name, action_type):
     }.get(action_type, "#f9f9f9")
 
 def get_cluster_by_arm_parsing(name, props):
-    action_type = props.get("type", "")
+    name_lower = name.lower()
     inputs = props.get("inputs", {})
-    conn_name = ""
-    uri = ""
+    uri = inputs.get("uri", "") if isinstance(inputs, dict) else ""
+    body = inputs.get("body", {}) if isinstance(inputs, dict) else {}
 
+    # Try to extract host connection name if available
+    connection_name = ""
     if isinstance(inputs, dict):
         host = inputs.get("host", {})
         if isinstance(host, dict):
-            conn = host.get("connection", {})
-            if isinstance(conn, dict):
-                conn_name = conn.get("name", "").lower()
-        uri = inputs.get("uri", "")
+            connection = host.get("connection", {})
+            if isinstance(connection, dict):
+                connection_name = connection.get("name", "").lower()
 
-    # Handle parameterized connection names (e.g., ['$connections']['office365'])
-    if isinstance(conn_name, str) and "office365" in conn_name:
+    # Priority: connection name
+    if "office365" in connection_name or "sharedmailbox" in connection_name:
         return "o365"
-    if isinstance(conn_name, str) and "azureautomation" in conn_name:
+    if "azureautomation" in connection_name or "automation" in connection_name:
         return "automation"
-    if "graph.microsoft.com" in uri or "graph" in conn_name:
+    if "graph" in connection_name:
+        return "graph"
+
+    # Secondary: uri pattern
+    if "graph.microsoft.com" in uri:
+        return "graph"
+
+    # Lifecycle-specific callback targets only
+    if name_lower in ["successcallback", "failurecallback"] or "lifecyclecallback" in name_lower:
         return "lifecycle"
-    if action_type in ["ParseJson", "Compose", "Foreach", "If", "Http", "InitializeVariable"]:
-        return "logicapp"
+
+    # Fallback on action name pattern
+    if "sendemail" in name_lower or "sharedmailbox" in name_lower:
+        return "o365"
+    if "runbook" in name_lower:
+        return "automation"
+
     return "logicapp"
+
 def build_dot_with_arm_and_runbook(actions, condition_detail, runbook_label):
     dot = [
         'digraph LogicAppFlow {',
@@ -57,33 +72,29 @@ def build_dot_with_arm_and_runbook(actions, condition_detail, runbook_label):
         "lifecycle": {"label": "Lifecycle Workflow", "color": "#3399ff", "style": "dashed", "nodes": []},
         "logicapp": {"label": "Azure Logic App", "color": "#666666", "style": "dashed", "nodes": []},
         "automation": {"label": "Azure Automation (via Logic App)", "color": "#00cc44", "style": "dashed", "nodes": []},
-        "o365": {"label": "Error Handling & O365 Email", "color": "#cc0000", "style": "dashed", "nodes": []}
+        "o365": {"label": "Error Handling & O365 Email", "color": "#cc0000", "style": "dashed", "nodes": []},
+        "graph": {"label": "Microsoft Graph", "color": "#99ccff", "style": "dashed", "nodes": []}
     }
 
     edges = []
 
-    clusters["lifecycle"]["nodes"].append(
-        'Start [label="Lifecycle Workflow\nInitiates Logic App", shape=box, fillcolor="#e6f2ff"];')
-    clusters["lifecycle"]["nodes"].append(
-        'SuccessCallback [label="HTTP POST\nSuccess Callback", shape=box, fillcolor="#ccffcc"];')
-    clusters["lifecycle"]["nodes"].append(
-        'FailureCallback [label="HTTP POST\nFailure Callback", shape=box, fillcolor="#ffcccc"];')
-    clusters["logicapp"]["nodes"].append(
-        'HTTPTrigger [label="Manual Trigger\nHTTP Request", shape=box, fillcolor="#d0e0f0"];')
-
-    edges.append(("Start", "HTTPTrigger", ""))
-    edges.append(("HTTPTrigger", "Create_job", ""))
-
     for name, props in actions.items():
+        cluster = get_cluster_by_arm_parsing(name, props)
+        if cluster not in clusters:
+            clusters[cluster] = {
+                "label": cluster.capitalize(),
+                "color": "#cccccc",
+                "style": "dashed",
+                "nodes": []
+            }
+
         sid = sanitize_name(name)
         shape = get_shape(props.get("type", ""))
         fill = get_fillcolor(name, props.get("type", ""))
         label = name.replace("_", " ")
-        cluster = get_cluster_by_arm_parsing(name, props)
         clusters[cluster]["nodes"].append(f'{sid} [label="{label}", shape={shape}, fillcolor="{fill}"];')
 
         for src, conds in props.get("runAfter", {}).items():
-            # Keep labels only for Condition edges
             edge_label = conds[0] if (conds and sanitize_name(src) == "Condition") else ""
             edges.append((sanitize_name(src), sid, edge_label))
 
@@ -100,7 +111,15 @@ def build_dot_with_arm_and_runbook(actions, condition_detail, runbook_label):
         fill = get_fillcolor(fname, fprops.get("type", ""))
         label = fname.replace("_", " ")
         cluster = get_cluster_by_arm_parsing(fname, fprops)
+        if cluster not in clusters:
+            clusters[cluster] = {
+                "label": cluster.capitalize(),
+                "color": "#cccccc",
+                "style": "dashed",
+                "nodes": []
+            }
         clusters[cluster]["nodes"].append(f'{sid} [label="{label}", shape=box, fillcolor="{fill}"];')
+
     edges.append(("Condition", "Compose_1", "Failure"))
     edges.append(("Compose_1", "Send_an_email_from_a_shared_mailbox_(V2)", ""))
     edges.append(("Send_an_email_from_a_shared_mailbox_(V2)", "HTTP_Workflow_Failed", ""))
@@ -111,9 +130,27 @@ def build_dot_with_arm_and_runbook(actions, condition_detail, runbook_label):
         fill = get_fillcolor(sname, sprops.get("type", ""))
         label = sname.replace("_", " ")
         cluster = get_cluster_by_arm_parsing(sname, sprops)
+        if cluster not in clusters:
+            clusters[cluster] = {
+                "label": cluster.capitalize(),
+                "color": "#cccccc",
+                "style": "dashed",
+                "nodes": []
+            }
         clusters[cluster]["nodes"].append(f'{sid} [label="{label}", shape=box, fillcolor="{fill}"];')
         edges.append(("Condition", sid, "Success"))
         edges.append((sid, "SuccessCallback", ""))
+
+    clusters["lifecycle"]["nodes"].append(
+        'Start [label="Lifecycle Workflow Initiates Logic App", shape=box, fillcolor="#e6f2ff"];')
+    clusters["lifecycle"]["nodes"].append(
+        'SuccessCallback [label="HTTP POST Success Callback", shape=box, fillcolor="#ccffcc"];')
+    clusters["lifecycle"]["nodes"].append(
+        'FailureCallback [label="HTTP POST Failure Callback", shape=box, fillcolor="#ffcccc"];')
+    clusters["logicapp"]["nodes"].append(
+        'HTTPTrigger [label="Manual Trigger HTTP Request", shape=box, fillcolor="#d0e0f0"];')
+    edges.append(("Start", "HTTPTrigger", ""))
+    edges.append(("HTTPTrigger", "Create_job", ""))
 
     for cid, info in clusters.items():
         dot.append(f'    subgraph cluster_{cid} {{')
@@ -160,6 +197,14 @@ def build_simple_dot_from_arm(actions, triggers, condition_detail):
             edges.append((sanitize_name(tname), sanitize_name(action), ""))
 
     for name, props in actions.items():
+        cluster = get_cluster_by_arm_parsing(name, props)
+        if cluster not in clusters:
+            clusters[cluster] = {
+                "label": cluster.capitalize(),
+                "color": "#cccccc",
+                "style": "dashed",
+                "nodes": []
+            }
         sid = sanitize_name(name)
         fill = get_fillcolor(name, props.get("type", ""))
         label = name.replace("_", " ")
@@ -289,6 +334,132 @@ def build_hybridintegration_from_flow():
         '    Powershell -> ExchangeOnline [label="Authenticate"];',
         '    LogicApp -> LifecycleSystem [label="Callback"];'
     ]
+
+    dot.append("}")
+    return "\n".join(dot)
+
+# --- Final version of the simple diagram builder ---
+def build_simple_dot_from_arm_final(actions, triggers, condition_detail):
+    dot = [
+        'digraph LogicAppFlow {',
+        '    compound=true fontname="Segoe UI" fontsize=11 rankdir=TB;',
+        '    node [fontname="Segoe UI" fontsize=10 shape=box style=filled];'
+    ]
+
+    clusters = {}
+    edges = []
+    added_nodes = set()
+
+    trigger_name = next(iter(triggers.keys()), "manual")
+    trigger_sid = sanitize_name(trigger_name)
+
+    # Inject Start and Trigger
+    clusters.setdefault("lifecycle", {
+        "label": "Lifecycle Workflow", "color": "#3399ff", "style": "dashed", "nodes": []
+    })
+    clusters.setdefault("logicapp", {
+        "label": "Azure Logic App", "color": "#666666", "style": "dashed", "nodes": []
+    })
+
+    clusters["lifecycle"]["nodes"].append(
+        'Start [label="Lifecycle Workflow\\nInitiates Logic App", shape=box, fillcolor="#e6f2ff"];')
+    clusters["logicapp"]["nodes"].append(
+        f'{trigger_sid} [label="Manual Trigger\\nHTTP Request", shape=box, fillcolor="#d0e0f0"];')
+    edges.append(("Start", trigger_sid, ""))
+
+    # Track runAfter map to determine real flow
+    run_after_map = {}
+    all_nodes = set()
+
+    # Iterate over actions
+    for name, props in actions.items():
+        cluster = get_cluster_by_arm_parsing(name, props)
+        if cluster not in clusters:
+            clusters[cluster] = {
+                "label": cluster.capitalize(),
+                "color": "#cccccc",
+                "style": "dashed",
+                "nodes": []
+            }
+        sid = sanitize_name(name)
+        action_type = props.get("type", "")
+        shape = get_shape(action_type)
+        fill = get_fillcolor(name, action_type)
+
+        # Enhanced labels
+        label = name.replace("_", " ")
+        if action_type == "ParseJson":
+            label = "Parse JSON Result"
+        elif action_type == "Http":
+            method = props.get("inputs", {}).get("method", "").upper()
+            label = f"{label}\nHTTP {method}" if method else label
+        elif "Compose" in name:
+            label = "HTML Email Body"
+        elif "Send" in name and "Email" in name:
+            label = "Send Email\nOffice 365 Shared Mailbox"
+
+        # Determine cluster
+        cluster = get_cluster_by_arm_parsing(name, props)
+        clusters.setdefault(cluster, {
+            "label": {
+                "logicapp": "Azure Logic App",
+                "lifecycle": "Lifecycle Workflow",
+                "automation": "Azure Automation (via Logic App)",
+                "o365": "Error Handling & O365 Email",
+                "graph": "Microsoft Graph"
+            }.get(cluster, cluster.capitalize()),
+            "color": {
+                "logicapp": "#666666",
+                "lifecycle": "#3399ff",
+                "automation": "#00cc44",
+                "o365": "#cc0000",
+                "graph": "#99ccff"
+            }.get(cluster, "#cccccc"),
+            "style": "dashed",
+            "nodes": []
+        })
+
+        clusters[cluster]["nodes"].append(f'{sid} [label="{label}", shape={shape}, fillcolor="{fill}"];')
+        all_nodes.add(sid)
+
+        # runAfter edges
+        for src, conds in props.get("runAfter", {}).items():
+            label = conds[0] if conds and sanitize_name(src) == "Condition" else ""
+            edges.append((sanitize_name(src), sid, label))
+            run_after_map[sid] = run_after_map.get(sid, set()) | {sanitize_name(src)}
+
+        # Detect lifecycle callback status
+        body = props.get("inputs", {}).get("body", {})
+        if isinstance(body, dict) and body.get("type") == "lifecycleEvent":
+            operation = body.get("data", {}).get("operationStatus", "")
+            if operation == "Completed":
+                clusters["lifecycle"]["nodes"].append(
+                    'SuccessStatus [label="HTTP POST\\nSuccess Callback", shape=box, fillcolor="#ccffcc"];')
+                edges.append((sid, "SuccessStatus", ""))
+            elif operation == "Failed":
+                clusters["lifecycle"]["nodes"].append(
+                    'FailureStatus [label="HTTP POST\\nFailure Callback", shape=box, fillcolor="#ffcccc"];')
+                edges.append((sid, "FailureStatus", ""))
+
+    # Attach only real entry points to Trigger (no scattered layout)
+    for sid in all_nodes:
+        if sid not in set(tgt for src, tgt, _ in edges):
+            if sid != trigger_sid:
+                edges.append((trigger_sid, sid, ""))
+
+    # Emit clusters
+    for cid, info in clusters.items():
+        dot.append(f'    subgraph cluster_{cid} {{')
+        dot.append(f'        color="{info["color"]}" fontcolor=black label="{info["label"]}" style={info["style"]};')
+        dot.extend(f'        {n}' for n in info["nodes"])
+        dot.append('    }')
+
+    # Emit edges in order
+    for src, tgt, lbl in edges:
+        line = f'{src} -> {tgt}'
+        if lbl:
+            line += f' [label="{lbl}"]'
+        dot.append(f'    {line};')
 
     dot.append("}")
     return "\n".join(dot)

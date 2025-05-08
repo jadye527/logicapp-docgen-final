@@ -7,7 +7,7 @@ from docx.shared import Inches
 from graphviz import Digraph
 
 from logicapp_docgen.utils import extract_services
-from logicapp_docgen.diagram_builder import render_flow_diagram_from_arm, build_hybridintegration_from_flow
+from logicapp_docgen.diagram_builder import build_dot_with_arm_and_runbook, build_simple_dot_from_arm_final, render_flow_diagram_from_arm, build_hybridintegration_from_flow
 from logicapp_docgen.runbook_utils import extract_runbook_label
 from logicapp_docgen.generate_docx import generate_document
 from logicapp_docgen import parser
@@ -52,7 +52,11 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     print("⚙️  Generating Logic App Flow Diagram...")
     condition_raw = actions.get("Condition", {})
     condition = condition_raw if isinstance(condition_raw, dict) else {}
-    dot = render_flow_diagram_from_arm(actions, triggers, condition, runbook_label)
+    dot = render_dot = (
+    build_dot_with_arm_and_runbook(actions, condition, runbook_label)
+    if "AzureAutomation" in extract_services(arm)
+    else build_simple_dot_from_arm_final(actions, triggers, condition)
+)
 
 
     flow_dot_path = os.path.join(output_dir, "LogicAppFlow.dot")
