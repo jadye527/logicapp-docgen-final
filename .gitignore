@@ -7,3 +7,4 @@ output/
 .env
 .vscode/
 .DS_Store
+logicapp_docgen/__pycache__/core.cpython-310.pyc
