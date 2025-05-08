@@ -42,7 +42,7 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     actions = definition.get("actions", {})
     triggers = definition.get("triggers", {})
 
-    # 🔁 NEW DYNAMIC RUNBOOK LOGIC
+       # 🔁 NEW DYNAMIC RUNBOOK LOGIC
     runbook_name = ""
     create_job = actions.get("Create_job", {})
     inputs = create_job.get("inputs", {})
@@ -52,11 +52,14 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
         runbook_name = inputs["queries"].get("runbookName", "")
 
     runbook_path = os.path.join("runbooks", f"{runbook_name}.ps1")
+
     if os.path.exists(runbook_path):
         runbook_steps = extract_runbook_label(runbook_path, runbook_name).splitlines()
-        runbook_label = "\n".join([f"{runbook_name} Runbook"] + runbook_steps)
+        if runbook_steps and runbook_steps[0].strip().lower() == f"{runbook_name.lower()} runbook":
+            runbook_steps = runbook_steps[1:]
+        runbook_label = "\\n".join([f"{runbook_name} Runbook"] + runbook_steps)
     else:
-        runbook_label = f"{runbook_name} Runbook\n{runbook_name}.ps1 not found"
+        runbook_label = f"{runbook_name} Runbook\\n{runbook_name}.ps1 not found"
 
     print("⚙️  Generating Logic App Flow Diagram...")
     condition_raw = actions.get("Condition", {})
