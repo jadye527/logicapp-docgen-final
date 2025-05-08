@@ -9,14 +9,14 @@ docker build -t logicapp-docgen $projectPath
 Write-Host "`n🧹 Stopping previous container (if running)..."
 docker rm -f $containerName 2>$null
 
- Write-Host "`n🚀 Running Docker container with interactive shell and logs..."
+ <# Write-Host "`n🚀 Running Docker container with interactive shell and logs..."
 
  docker run -it `
     -v ${projectPath}:/app `
     --name $containerName `
     logicapp-docgen
 
-Write-Host "`n✅ Container exited. Use logs above to debug if needed."  
+Write-Host "`n✅ Container exited. Use logs above to debug if needed."  #> 
 
 <# docker rm -f $containerName 2>$null
 docker run -it `
@@ -25,9 +25,10 @@ docker run -it `
 --name $containerName `
 logicapp-docgen `
 bash
- #>
 
-<# Write-Host "`n✅ Container exited. Use logs above to debug if needed." 
+
+ Write-Host "`n✅ Container exited. Use logs above to debug if needed." 
+  #>
  docker run -it `
   -v "${projectPath}:/app" `
   --name $containerName `
@@ -38,5 +39,5 @@ bash
     --docx_template "template.docx" `
     --output "output/logicapp_test.docx"
 Write-Host "`n✅ Container exited. Use logs above to debug if needed." #>
- #>
+ 
 

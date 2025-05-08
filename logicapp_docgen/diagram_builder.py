@@ -25,24 +25,27 @@ def get_fillcolor(action_name, action_type):
 def get_cluster_by_arm_parsing(name, props):
     action_type = props.get("type", "")
     inputs = props.get("inputs", {})
+    conn_name = ""
     uri = ""
-    host_connection = ""
-    if isinstance(inputs, dict):
-        uri = inputs.get("uri", "")
-        host_connection = inputs.get("host", {}).get("connection", {}).get("name", "")
 
-    if name == "manual":
-        return "logicapp"
-    if "graph.microsoft.com" in str(uri) and "lifecycleEvent" in str(inputs):
-        return "lifecycle"
-    if "office365" in str(host_connection) or "send" in name.lower() or "compose" in name.lower():
+    if isinstance(inputs, dict):
+        host = inputs.get("host", {})
+        if isinstance(host, dict):
+            conn = host.get("connection", {})
+            if isinstance(conn, dict):
+                conn_name = conn.get("name", "").lower()
+        uri = inputs.get("uri", "")
+
+    # Handle parameterized connection names (e.g., ['$connections']['office365'])
+    if isinstance(conn_name, str) and "office365" in conn_name:
         return "o365"
-    if "azureautomation" in str(host_connection):
+    if isinstance(conn_name, str) and "azureautomation" in conn_name:
         return "automation"
+    if "graph.microsoft.com" in uri or "graph" in conn_name:
+        return "lifecycle"
     if action_type in ["ParseJson", "Compose", "Foreach", "If", "Http", "InitializeVariable"]:
         return "logicapp"
     return "logicapp"
-
 def build_dot_with_arm_and_runbook(actions, condition_detail, runbook_label):
     dot = [
         'digraph LogicAppFlow {',
@@ -127,6 +130,92 @@ def build_dot_with_arm_and_runbook(actions, condition_detail, runbook_label):
     dot.append("}")
     return "\n".join(dot)
 
+def build_simple_dot_from_arm(actions, triggers, condition_detail):
+    dot = [
+        'digraph LogicAppFlow {',
+        '    compound=true fontname="Segoe UI" fontsize=11 rankdir=TB;',
+        '    node [fontname="Segoe UI" fontsize=10 shape=box style=filled];'
+    ]
+
+    clusters = {
+        "lifecycle": {"label": "Lifecycle Workflow", "color": "#3399ff", "style": "dashed", "nodes": []},
+        "logicapp": {"label": "Azure Logic App", "color": "#666666", "style": "dashed", "nodes": []},
+        "o365": {"label": "Office 365", "color": "#ff9900", "style": "dashed", "nodes": []},
+        "graph": {"label": "Microsoft Graph", "color": "#9966cc", "style": "dashed", "nodes": []}
+    }
+
+    edges = []
+    clusters["lifecycle"]["nodes"].append(
+        'Start [label="Lifecycle Workflow\nInitiates Logic App", shape=box, fillcolor="#e6f2ff"];')
+
+    for tname, tprops in triggers.items():
+        fill = get_fillcolor(tname, tprops.get("type", ""))
+        sid = sanitize_name(tname)
+        clusters["logicapp"]["nodes"].append(f'{sid} [label="{tname}", shape=box, fillcolor="{fill}"];')
+        edges.append(("Start", sid, ""))
+
+    top_level_actions = [k for k, v in actions.items() if not v.get("runAfter")]
+    for tname in triggers:
+        for action in top_level_actions:
+            edges.append((sanitize_name(tname), sanitize_name(action), ""))
+
+    for name, props in actions.items():
+        sid = sanitize_name(name)
+        fill = get_fillcolor(name, props.get("type", ""))
+        label = name.replace("_", " ")
+        cluster = get_cluster_by_arm_parsing(name, props)
+        shape = get_shape(props.get("type", ""))
+        clusters.setdefault(cluster, {"label": cluster, "color": "#cccccc", "style": "dashed", "nodes": []})
+        clusters[cluster]["nodes"].append(f'{sid} [label="{label}", shape={shape}, fillcolor="{fill}"];')
+
+        for src, conds in props.get("runAfter", {}).items():
+            edge_label = conds[0] if (conds and sanitize_name(src) == "Condition") else ""
+            edges.append((sanitize_name(src), sid, edge_label))
+
+    if "actions" in condition_detail:
+        for fname, fprops in list(condition_detail["actions"].items())[:1]:
+            sid = sanitize_name(fname)
+            fill = get_fillcolor(fname, fprops.get("type", ""))
+            label = fname.replace("_", " ")
+            shape = get_shape(fprops.get("type", ""))
+            cluster = get_cluster_by_arm_parsing(fname, fprops)
+            clusters.setdefault(cluster, {"label": cluster, "color": "#cccccc", "style": "dashed", "nodes": []})
+            clusters[cluster]["nodes"].append(f'{sid} [label="{label}", shape={shape}, fillcolor="{fill}"];')
+            edges.append(("Condition", sid, "Failure"))
+
+    if "else" in condition_detail and "actions" in condition_detail["else"]:
+        for sname, sprops in list(condition_detail["else"]["actions"].items())[:1]:
+            sid = sanitize_name(sname)
+            fill = get_fillcolor(sname, sprops.get("type", ""))
+            label = sname.replace("_", " ")
+            shape = get_shape(sprops.get("type", ""))
+            cluster = get_cluster_by_arm_parsing(sname, sprops)
+            clusters.setdefault(cluster, {"label": cluster, "color": "#cccccc", "style": "dashed", "nodes": []})
+            clusters[cluster]["nodes"].append(f'{sid} [label="{label}", shape={shape}, fillcolor="{fill}"];')
+            edges.append(("Condition", sid, "Success"))
+
+    for cid, info in clusters.items():
+        if info["nodes"]:
+            dot.append(f'    subgraph cluster_{cid} {{')
+            dot.append(f'        color="{info["color"]}" fontcolor=black label="{info["label"]}" style={info["style"]};')
+            dot.extend([f'        {n}' for n in info["nodes"]])
+            dot.append('    }')
+
+    for src, tgt, lbl in edges:
+        line = f'{sanitize_name(src)} -> {sanitize_name(tgt)}'
+        if lbl:
+            line += f' [label="{lbl}"]'
+        dot.append(f'    {line};')
+
+    dot.append("}")
+    return "\n".join(dot)
+
+def render_flow_diagram_from_arm(actions, triggers, condition, runbook_label=None):
+    if "Create_job" in actions or "Runbook" in actions:
+        return build_dot_with_arm_and_runbook(actions, condition, runbook_label)
+    else:
+        return build_simple_dot_from_arm(actions, triggers, condition)
+
 def build_hybridintegration_from_flow():
     with open("output/LogicAppFlow.dot", "r") as f:
         lines = f.readlines()
@@ -173,32 +262,32 @@ def build_hybridintegration_from_flow():
         "digraph HybridIntegration {",
         "    rankdir=TB",
         "    compound=true",
-        '    fontname=\"Segoe UI\"',
+        '    fontname="Segoe UI"',
         "    fontsize=12",
-        '    node [fontname=\"Segoe UI\" fontsize=10 shape=box style=filled]'
+        '    node [fontname="Segoe UI" fontsize=10 shape=box style=filled]'
     ]
 
     for role, cluster in mapped.items():
         label = labels[role]
         fill = colors[role]
         border = borders[role]
-        cluster_nodes[cluster]["nodes"].append(f'{role} [label=\"{label}\", fillcolor=\"{fill}\", color=\"{border}\"];')
+        cluster_nodes[cluster]["nodes"].append(f'{role} [label="{label}", fillcolor="{fill}", color="{border}"];')
 
     for cid, info in cluster_nodes.items():
         dot.append(f'    subgraph cluster_{cid} {{')
-        dot.append(f'        label=\"{info["label"]}\"')
+        dot.append(f'        label="{info["label"]}"')
         dot.append(f'        style=dashed')
-        dot.append(f'        color=\"{info["color"]}\"')
+        dot.append(f'        color="{info["color"]}"')
         dot.append('        fontcolor=black')
         dot.extend([f'        {n}' for n in info["nodes"]])
         dot.append("    }")
 
     dot += [
-        '    LifecycleSystem -> LogicApp [label=\"Initiate\"];',
-        '    LogicApp -> AzureAutomation [label=\"Create Job\"];',
+        '    LifecycleSystem -> LogicApp [label="Initiate"];',
+        '    LogicApp -> AzureAutomation [label="Create Job"];',
         '    AzureAutomation -> Powershell;',
-        '    Powershell -> ExchangeOnline [label=\"Authenticate\"];',
-        '    LogicApp -> LifecycleSystem [label=\"Callback\"];'
+        '    Powershell -> ExchangeOnline [label="Authenticate"];',
+        '    LogicApp -> LifecycleSystem [label="Callback"];'
     ]
 
     dot.append("}")
