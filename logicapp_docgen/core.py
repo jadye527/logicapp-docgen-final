@@ -59,6 +59,14 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
         f.write(dot)
     subprocess.run(["dot", "-Tpng", flow_dot_path, "-o", flow_png_path], check=True)
     print("✅ Flow diagram saved to:", flow_png_path)
+    from logicapp_docgen.diagram_builder import build_hybridintegration_from_flow
+    hybrid_dot = build_hybridintegration_from_flow()
+    hybrid_dot_path = os.path.join(output_dir, "HybridIntegration.dot")
+    hybrid_png_path = os.path.join(output_dir, "HybridIntegration.png")
+    with open(hybrid_dot_path, "w") as f:
+        f.write(hybrid_dot)
+    subprocess.run(["dot", "-Tpng", hybrid_dot_path, "-o", hybrid_png_path], check=True)
+
 
     # Use existing generate_docx logic for document building
     wf = parser.extract_workflow_structure(arm)

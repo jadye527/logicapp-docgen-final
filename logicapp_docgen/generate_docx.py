@@ -71,6 +71,16 @@ def generate_document(architecture, execution, flow_text, data_flow, hybrid_text
         doc.add_paragraph(item, style='Bullets')
 
     doc.add_heading("1.7 Hybrid Integration Diagram", level=2)
+    try:
+        hybrid_png = os.path.join("output", "HybridIntegration.png")
+        if os.path.exists(hybrid_png):
+            doc.add_picture(hybrid_png, width=Inches(6.0))
+            doc.paragraphs[-1].alignment = 1
+            doc.add_paragraph("Figure: Hybrid Integration Diagram", style="Caption")
+        else:
+            doc.add_paragraph("❌ Could not render Hybrid Integration Diagram.")
+    except Exception:
+        doc.add_paragraph("❌ Error rendering Hybrid Integration Diagram.")
     for item in hybrid_text:
         doc.add_paragraph(item, style='Bullets')
 

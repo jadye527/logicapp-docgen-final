@@ -1,4 +1,3 @@
-
 import re
 
 def sanitize_name(name):
@@ -124,6 +123,83 @@ def build_dot_with_arm_and_runbook(actions, condition_detail, runbook_label):
         if lbl:
             line += f' [label="{lbl}"]'
         dot.append(f'    {line};')
+
+    dot.append("}")
+    return "\n".join(dot)
+
+def build_hybridintegration_from_flow():
+    with open("output/LogicAppFlow.dot", "r") as f:
+        lines = f.readlines()
+
+    cluster_nodes = {
+        "AzureCloud": {"label": "Azure Cloud", "color": "#00cc44", "nodes": []},
+        "Office365": {"label": "Office 365", "color": "#ff9900", "nodes": []},
+        "Governance": {"label": "Entra Governance", "color": "#0078d4", "nodes": []},
+    }
+
+    mapped = {
+        "LifecycleSystem": "Governance",
+        "LogicApp": "AzureCloud",
+        "AzureAutomation": "AzureCloud",
+        "Powershell": "AzureCloud",
+        "ExchangeOnline": "Office365"
+    }
+
+    labels = {
+        "LifecycleSystem": "Lifecycle Workflow System",
+        "LogicApp": "Logic App",
+        "AzureAutomation": "Azure Automation",
+        "Powershell": "PowerShell - Delegate Mailbox",
+        "ExchangeOnline": "Exchange Online"
+    }
+
+    colors = {
+        "LifecycleSystem": "#cce6ff",
+        "LogicApp": "#d0e0f0",
+        "AzureAutomation": "#b3e6b3",
+        "Powershell": "#e6ccff",
+        "ExchangeOnline": "#ffd699"
+    }
+
+    borders = {
+        "LifecycleSystem": "#3399ff",
+        "LogicApp": "#666666",
+        "AzureAutomation": "#00cc44",
+        "Powershell": "#9966cc",
+        "ExchangeOnline": "#ff9900"
+    }
+
+    dot = [
+        "digraph HybridIntegration {",
+        "    rankdir=TB",
+        "    compound=true",
+        '    fontname=\"Segoe UI\"',
+        "    fontsize=12",
+        '    node [fontname=\"Segoe UI\" fontsize=10 shape=box style=filled]'
+    ]
+
+    for role, cluster in mapped.items():
+        label = labels[role]
+        fill = colors[role]
+        border = borders[role]
+        cluster_nodes[cluster]["nodes"].append(f'{role} [label=\"{label}\", fillcolor=\"{fill}\", color=\"{border}\"];')
+
+    for cid, info in cluster_nodes.items():
+        dot.append(f'    subgraph cluster_{cid} {{')
+        dot.append(f'        label=\"{info["label"]}\"')
+        dot.append(f'        style=dashed')
+        dot.append(f'        color=\"{info["color"]}\"')
+        dot.append('        fontcolor=black')
+        dot.extend([f'        {n}' for n in info["nodes"]])
+        dot.append("    }")
+
+    dot += [
+        '    LifecycleSystem -> LogicApp [label=\"Initiate\"];',
+        '    LogicApp -> AzureAutomation [label=\"Create Job\"];',
+        '    AzureAutomation -> Powershell;',
+        '    Powershell -> ExchangeOnline [label=\"Authenticate\"];',
+        '    LogicApp -> LifecycleSystem [label=\"Callback\"];'
+    ]
 
     dot.append("}")
     return "\n".join(dot)
