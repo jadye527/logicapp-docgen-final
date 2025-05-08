@@ -40,7 +40,7 @@ function Write-WorkflowOutput {
 Disable-AzContextAutosave -Scope Process | Out-Null
 
 try {
-    # Connect to Exchange Online using the managed identity
+    # Step 1: Connect to Exchange Online using the managed identity
     Connect-ExchangeOnline -ManagedIdentity -Organization rehlko.com | Out-Null
 } catch {
     $results.status = "Failed"
@@ -52,7 +52,7 @@ try {
     exit
 }
 
-# Check if mailbox exists before proceeding
+# Step 2: Check if mailbox exists before proceeding
 try {
     $mailbox = Get-Mailbox -Identity $UserEmail -ErrorAction Stop
     if ($null -eq $mailbox) {
@@ -74,7 +74,7 @@ try {
     exit
 }
 
-# Convert Mailbox to Shared with verification and retry logic
+# Step 3: Convert Mailbox to Shared with verification and retry logic
 try {
     # Get mailbox state before change
     $mailboxBefore = Get-Mailbox -Identity $UserEmail | Select-Object RecipientTypeDetails, ExchangeGuid
@@ -120,7 +120,7 @@ try {
     $results.output.mailboxConversion.details += " | Error during conversion"
 }
 
-# Delegate Mailbox to Manager with verification and retry logic
+# Step 4: Delegate Mailbox to Manager with verification and retry logic
 try {
     # Check existing permissions - suppress output with [void]
     $hasExistingPermissions = @(Get-MailboxPermission -Identity $UserEmail | 
