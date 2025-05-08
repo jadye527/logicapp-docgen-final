@@ -23,17 +23,14 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     output_dir = os.path.dirname(output_path) or "."
     os.makedirs(output_dir, exist_ok=True)
 
-    # Load ARM template
     with open(template_path) as f:
         arm = json.load(f)
 
-    # Load parameters (optional)
     parameters = {}
     if parameters_path:
         with open(parameters_path) as pf:
             parameters = json.load(pf)
 
-    # Extract key details
     logic_app_res = [r for r in arm.get("resources", []) if "/workflows" in r.get("type", "")]
     logic_app = logic_app_res[0] if logic_app_res else {}
     name_raw = logic_app.get("name", "LogicApp")
@@ -45,19 +42,31 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     actions = definition.get("actions", {})
     triggers = definition.get("triggers", {})
 
-    # Diagram generation
-    runbook_path = os.path.join("runbooks", "DelegateMailbox.ps1")
-    runbook_label = extract_runbook_label(runbook_path, "DelegateMailbox")
+    # 🔁 NEW DYNAMIC RUNBOOK LOGIC
+    runbook_name = ""
+    create_job = actions.get("Create_job", {})
+    inputs = create_job.get("inputs", {})
+    if "properties" in inputs:
+        runbook_name = inputs["properties"].get("runbook", {}).get("name", "")
+    elif "queries" in inputs:
+        runbook_name = inputs["queries"].get("runbookName", "")
+
+    runbook_path = os.path.join("runbooks", f"{runbook_name}.ps1")
+    if os.path.exists(runbook_path):
+        runbook_steps = extract_runbook_label(runbook_path, runbook_name).splitlines()
+        runbook_label = "\n".join([f"{runbook_name} Runbook"] + runbook_steps)
+    else:
+        runbook_label = f"{runbook_name} Runbook\n{runbook_name}.ps1 not found"
 
     print("⚙️  Generating Logic App Flow Diagram...")
     condition_raw = actions.get("Condition", {})
     condition = condition_raw if isinstance(condition_raw, dict) else {}
-    dot = render_dot = (
-    build_dot_with_arm_and_runbook(actions, condition, runbook_label)
-    if "AzureAutomation" in extract_services(arm)
-    else build_simple_dot_from_arm_final(actions, triggers, condition)
-)
 
+    dot = render_dot = (
+        build_dot_with_arm_and_runbook(actions, condition, runbook_label)
+        if "AzureAutomation" in extract_services(arm)
+        else build_simple_dot_from_arm_final(actions, triggers, condition)
+    )
 
     flow_dot_path = os.path.join(output_dir, "LogicAppFlow.dot")
     flow_png_path = os.path.join(output_dir, "LogicAppFlow.png")
@@ -65,7 +74,8 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     with open(flow_dot_path, "w") as f:
         f.write(dot)
     subprocess.run(["dot", "-Tpng", flow_dot_path, "-o", flow_png_path], check=True)
-    print("✅ Flow diagram saved to:", flow_png_path)   
+    print("✅ Flow diagram saved to:", flow_png_path)
+
     hybrid_dot = build_hybridintegration_from_flow()
     hybrid_dot_path = os.path.join(output_dir, "HybridIntegration.dot")
     hybrid_png_path = os.path.join(output_dir, "HybridIntegration.png")
@@ -73,8 +83,6 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
         f.write(hybrid_dot)
     subprocess.run(["dot", "-Tpng", hybrid_dot_path, "-o", hybrid_png_path], check=True)
 
-
-    # Use existing generate_docx logic for document building
     wf = parser.extract_workflow_structure(arm)
     run_after = parser.extract_run_after_mapping(wf["action_details"])
     architecture = parser.extract_architecture_metadata(arm)
@@ -88,4 +96,3 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     doc = generate_document(architecture, execution, flow_text, data_flow, hybrid_text, conditions)
     doc.save(output_path)
     print("📄 Document saved to:", output_path)
-

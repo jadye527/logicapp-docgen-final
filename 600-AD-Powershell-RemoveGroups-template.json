@@ -1,0 +1,471 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2016-06-01",
+      "name": "600-AD-Powershell-RemoveGroups",
+      "location": "eastus",
+      "tags": {
+        "Purpose": "Azure AD Lifecycle Workflows",
+        "Team": "IAM"
+      },
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "Compose": {
+              "inputs": "@coalesce(body('Parse_JSON')?['errors'], createArray())\n",
+              "runAfter": {
+                "Parse_JSON": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Compose"
+            },
+            "Condition": {
+              "actions": {
+                "Compose_1": {
+                  "inputs": "<div style=\"font-family: Arial, sans-serif; max-width: 650px;\">\n<h2 style=\"color: #d9534f;\">Mailbox Delegation Failed</h2>\n\n<div style=\"background-color: #f8f8f8; padding: 15px; border-left: 4px solid #d9534f; margin-bottom: 20px;\">\n<p><strong>User:</strong> @{triggerBody()?['data']?['subject']?['displayName']}</p>\n<p><strong>Email:</strong> @{triggerBody()?['data']?['subject']?['email']}</p>\n<p><strong>Manager:</strong> @{triggerBody()?['data']?['subject']?['manager']?['displayName']}</p>\n<p><strong>Status:</strong> @{body('Parse_JSON')?['status']}</p>\n</div>\n\n<h3>Operation Results</h3>\n\n<table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n<tr style=\"background-color: #f2f2f2;\">\n<th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Operation</th>\n<th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Status</th>\n<th style=\"padding: 10px; text-align: left; border: 1px solid #ddd;\">Details</th>\n</tr>\n<tr>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">Mailbox Conversion</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{if(body('Parse_JSON')?['output']?['mailboxConversion']?['success'], 'Success', 'Failed')}</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{body('Parse_JSON')?['output']?['mailboxConversion']?['details']}</td>\n</tr>\n<tr>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">Manager Delegation</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{if(body('Parse_JSON')?['output']?['delegation']?['success'], 'Success', 'Failed')}</td>\n<td style=\"padding: 10px; border: 1px solid #ddd;\">@{body('Parse_JSON')?['output']?['delegation']?['details']}</td>\n</tr>\n</table>\n\n<h3>Error Details</h3>\n<div style=\"background-color: #fff0f0; padding: 15px; border-left: 4px solid #d9534f;\">\n<pre style=\"white-space: pre-wrap; font-family: Consolas, monospace;\">@{variables('ErrorMessages')}</pre>\n</div>\n\n<p style=\"margin-top: 20px; color: #777; font-size: 12px; border-top: 1px solid #eee; padding-top: 10px;\">\nThis is an automated message from the Lifecycle Workflow System. Please do not reply to this email.\nFor assistance, please contact the IT Support team.\n</p>\n</div>",
+                  "type": "Compose"
+                },
+                "HTTP-Workflow-Failed": {
+                  "inputs": {
+                    "authentication": {
+                      "audience": "https://graph.microsoft.com",
+                      "identity": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rk-eus-prod-entraid",
+                      "type": "ManagedServiceIdentity"
+                    },
+                    "body": {
+                      "data": {
+                        "operationStatus": "@{body('Parse_JSON')?['status']}"
+                      },
+                      "source": "azureAutomation",
+                      "type": "lifecycleEvent"
+                    },
+                    "method": "POST",
+                    "uri": "https://graph.microsoft.com/v1.0@{triggerBody()?['data']?['callbackUriPath']}"
+                  },
+                  "runAfter": {
+                    "Send_an_email_from_a_shared_mailbox_(V2)": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Http"
+                },
+                "Send_an_email_from_a_shared_mailbox_(V2)": {
+                  "inputs": {
+                    "body": {
+                      "Body": "<p class=\"editor-paragraph\">@{outputs('Compose_1')}</p>",
+                      "Importance": "Normal",
+                      "MailboxAddress": "svc_lifecycleworkflow@rehlko.com",
+                      "Subject": "Remove ADGroups Lifecycle Failed for user - @{triggerBody()?['data']?['subject']?['displayName']}.",
+                      "To": "jdye@bdo.com;adaeger@bdo.com;fgoetz@bdo.com"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['office365']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/v2/SharedMailbox/Mail"
+                  },
+                  "runAfter": {
+                    "Compose_1": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection"
+                }
+              },
+              "else": {
+                "actions": {
+                  "HTTP-Workflow-Completed": {
+                    "inputs": {
+                      "authentication": {
+                        "audience": "https://graph.microsoft.com",
+                        "identity": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rk-eus-prod-entraid",
+                        "type": "ManagedServiceIdentity"
+                      },
+                      "body": {
+                        "data": {
+                          "operationStatus": "@{body('Parse_JSON')?['status']}"
+                        },
+                        "source": "azureAutomation",
+                        "type": "lifecycleEvent"
+                      },
+                      "method": "POST",
+                      "uri": "https://graph.microsoft.com/v1.0@{triggerBody()?['data']?['callbackUriPath']}"
+                    },
+                    "type": "Http"
+                  }
+                }
+              },
+              "expression": {
+                "and": [
+                  {
+                    "equals": [
+                      "@body('Parse_JSON')?['status']",
+                      "Failed"
+                    ]
+                  }
+                ]
+              },
+              "runAfter": {
+                "For_each": [
+                  "Succeeded"
+                ]
+              },
+              "type": "If"
+            },
+            "Create_job": {
+              "inputs": {
+                "body": {
+                  "properties": {
+                    "parameters": {
+                      "WorkflowRunId": "@triggerBody()?['data']?['workflow']?['id']",
+                      "userEmail": "@triggerBody()?['data']?['subject']?['userPrincipalName']"
+                    },
+                    "runOn": "IAM Hybrid Worker"
+                  }
+                },
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azureautomation-1']['connectionId']"
+                  }
+                },
+                "method": "put",
+                "path": "/subscriptions/@{encodeURIComponent('a9360cdd-bae2-448e-ae6e-0d0a1300c218')}/resourceGroups/@{encodeURIComponent('rk-eus-prod-rg-citinf')}/providers/Microsoft.Automation/automationAccounts/@{encodeURIComponent('wd-eus-prod-lifecycle-workflow')}/jobs",
+                "queries": {
+                  "runbookName": "RemoveADGroups",
+                  "wait": true,
+                  "x-ms-api-version": "2015-10-31"
+                }
+              },
+              "runAfter": {},
+              "type": "ApiConnection"
+            },
+            "For_each": {
+              "actions": {
+                "Append_to_string_variable": {
+                  "inputs": {
+                    "name": "ErrorMessages",
+                    "value": "ErrorCode: @{items('For_each')?['code']}<br>\nMessage: @{items('For_each')?['message']}<br>\n"
+                  },
+                  "type": "AppendToStringVariable"
+                }
+              },
+              "foreach": "@outputs('Compose')",
+              "runAfter": {
+                "Initialize_variable": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach"
+            },
+            "Get_status_of_job": {
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azureautomation-2']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/subscriptions/@{encodeURIComponent('a9360cdd-bae2-448e-ae6e-0d0a1300c218')}/resourceGroups/@{encodeURIComponent('rk-eus-prod-rg-citinf')}/providers/Microsoft.Automation/automationAccounts/@{encodeURIComponent('wd-eus-prod-lifecycle-workflow')}/jobs/@{encodeURIComponent(body('Create_job')?['properties']?['jobId'])}",
+                "queries": {
+                  "x-ms-api-version": "2015-10-31"
+                }
+              },
+              "runAfter": {
+                "Create_job": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection"
+            },
+            "HTTP_1": {
+              "inputs": {
+                "authentication": {
+                  "audience": "https://management.azure.com",
+                  "identity": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rk-eus-prod-entraid",
+                  "type": "ManagedServiceIdentity"
+                },
+                "method": "GET",
+                "uri": "https://management.azure.com/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Automation/automationAccounts/wd-eus-prod-lifecycle-workflow/jobs/@{body('Create_job')?['properties']?['jobId']}/output?api-version=2015-10-31"
+              },
+              "runAfter": {
+                "Get_status_of_job": [
+                  "Succeeded"
+                ]
+              },
+              "runtimeConfiguration": {
+                "contentTransfer": {
+                  "transferMode": "Chunked"
+                }
+              },
+              "type": "Http"
+            },
+            "Initialize_variable": {
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "ErrorMessages",
+                    "type": "string"
+                  }
+                ]
+              },
+              "runAfter": {
+                "Compose": [
+                  "Succeeded"
+                ]
+              },
+              "type": "InitializeVariable"
+            },
+            "Parse_JSON": {
+              "inputs": {
+                "content": "@body('HTTP_1')",
+                "schema": {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "output": {
+                      "properties": {
+                        "delegation": {
+                          "properties": {
+                            "details": {
+                              "type": "string"
+                            },
+                            "success": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "mailboxConversion": {
+                          "properties": {
+                            "details": {
+                              "type": "string"
+                            },
+                            "success": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "workflowRunId": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "runAfter": {
+                "HTTP_1": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson"
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {},
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "Manager.Mail": {
+              "defaultValue": "Jason.Dye@rehlko.com",
+              "type": "String"
+            },
+            "Subject.Email": {
+              "defaultValue": "max.blackone@rehlko.com",
+              "type": "String"
+            }
+          },
+          "triggers": {
+            "manual": {
+              "inputs": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "callbackUriPath": {
+                          "description": "CallbackUriPath used for Resume Action",
+                          "title": "Data.CallbackUriPath",
+                          "type": "string"
+                        },
+                        "subject": {
+                          "properties": {
+                            "displayName": {
+                              "description": "DisplayName of the Subject",
+                              "title": "Subject.DisplayName",
+                              "type": "string"
+                            },
+                            "email": {
+                              "description": "Email of the Subject",
+                              "title": "Subject.Email",
+                              "type": "string"
+                            },
+                            "id": {
+                              "description": "Id of the Subject",
+                              "title": "Subject.Id",
+                              "type": "string"
+                            },
+                            "manager": {
+                              "properties": {
+                                "displayName": {
+                                  "description": "DisplayName parameter for Manager",
+                                  "title": "Manager.DisplayName",
+                                  "type": "string"
+                                },
+                                "email": {
+                                  "description": "Mail parameter for Manager",
+                                  "title": "Manager.Mail",
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "description": "Id parameter for Manager",
+                                  "title": "Manager.Id",
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "userPrincipalName": {
+                              "description": "UserPrincipalName of the Subject",
+                              "title": "Subject.UserPrincipalName",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "task": {
+                          "properties": {
+                            "displayName": {
+                              "description": "DisplayName for Task Object",
+                              "title": "Task.DisplayName",
+                              "type": "string"
+                            },
+                            "id": {
+                              "description": "Id for Task Object",
+                              "title": "Task.Id",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "taskProcessingResult": {
+                          "properties": {
+                            "createdDateTime": {
+                              "description": "CreatedDateTime for TaskProcessingResult Object",
+                              "title": "TaskProcessingResult.CreatedDateTime",
+                              "type": "string"
+                            },
+                            "id": {
+                              "description": "Id for TaskProcessingResult Object",
+                              "title": "TaskProcessingResult.Id",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "workflow": {
+                          "properties": {
+                            "displayName": {
+                              "description": "DisplayName for Workflow Object",
+                              "title": "Workflow.DisplayName",
+                              "type": "string"
+                            },
+                            "id": {
+                              "description": "Id for Workflow Object",
+                              "title": "Workflow.Id",
+                              "type": "string"
+                            },
+                            "workflowVerson": {
+                              "description": "WorkflowVersion for Workflow Object",
+                              "title": "Workflow.WorkflowVersion",
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "source": {
+                      "description": "Context in which an event happened",
+                      "title": "Request.Source",
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "Value describing the type of event related to the originating occurrence.",
+                      "title": "Request.Type",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "kind": "Http",
+              "type": "Request"
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureautomation-1": {
+                "connectionId": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/azureautomation-4",
+                "connectionName": "azureautomation-4",
+                "connectionProperties": {
+                  "authentication": {
+                    "identity": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rk-eus-prod-entraid",
+                    "type": "ManagedServiceIdentity"
+                  }
+                },
+                "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/azureautomation"
+              },
+              "azureautomation-2": {
+                "connectionId": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/azureautomation-2",
+                "connectionName": "azureautomation-2",
+                "connectionProperties": {
+                  "authentication": {
+                    "identity": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rk-eus-prod-entraid",
+                    "type": "ManagedServiceIdentity"
+                  }
+                },
+                "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/azureautomation"
+              },
+              "office365": {
+                "connectionId": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/office365-2",
+                "connectionName": "office365-2",
+                "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/office365"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

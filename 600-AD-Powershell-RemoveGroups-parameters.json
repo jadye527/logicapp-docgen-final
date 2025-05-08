@@ -1,0 +1,33 @@
+{
+  "$connections": {
+    "value": {
+      "azureautomation-1": {
+        "connectionId": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/azureautomation-4",
+        "connectionName": "azureautomation-4",
+        "connectionProperties": {
+          "authentication": {
+            "identity": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rk-eus-prod-entraid",
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/azureautomation"
+      },
+      "azureautomation-2": {
+        "connectionId": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/azureautomation-2",
+        "connectionName": "azureautomation-2",
+        "connectionProperties": {
+          "authentication": {
+            "identity": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rk-eus-prod-entraid",
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/azureautomation"
+      },
+      "office365": {
+        "connectionId": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/resourceGroups/rk-eus-prod-rg-citinf/providers/Microsoft.Web/connections/office365-2",
+        "connectionName": "office365-2",
+        "id": "/subscriptions/a9360cdd-bae2-448e-ae6e-0d0a1300c218/providers/Microsoft.Web/locations/eastus/managedApis/office365"
+      }
+    }
+  }
+}
