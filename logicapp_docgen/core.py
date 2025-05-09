@@ -20,7 +20,8 @@ def resolve_logic_app_name(name_expr, arm, parameters):
     return name_expr
 
 def generate_document_from_arm(template_path, parameters_path, docx_template, output_path):
-    output_dir = os.path.dirname(output_path) or "."
+    output_dir = os.path.join(".", "output")
+    os.makedirs(output_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
     with open(template_path) as f:
@@ -89,6 +90,7 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     wf = parser.extract_workflow_structure(arm)
     run_after = parser.extract_run_after_mapping(wf["action_details"])
     architecture = parser.extract_architecture_metadata(arm)
+    architecture["name"] = logic_app_name  # override with resolved name
     execution = parser.extract_execution_flow_steps(wf["actions"], run_after)
     flow_text = parser.describe_flow_diagram_text(wf["action_details"], run_after)
     data_flow = parser.describe_data_flow_text(wf["action_details"])
@@ -96,6 +98,93 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     hybrid_text = parser.describe_hybrid_integration_text(services)
     conditions = parser.extract_condition_branches(wf["action_details"])
 
-    doc = generate_document(architecture, execution, flow_text, data_flow, hybrid_text, conditions)
+    overview_summary = (
+        f"This document provides an overview of the Azure Logic App named '{logic_app_name}', "
+        f"which supports {tag_purpose.lower()} scenarios. It integrates services like {', '.join(services)} "
+        "to streamline automated workflows and reduce manual effort."
+    )
+
+    architecture_summary = (
+        f"The Logic App uses an event-driven architecture orchestrated through Azure connectors. "
+        f"Primary services integrated include {', '.join(services)}. The workflow is built to support resilience, reusability, and monitoring."
+    )
+
+    execution_summary = (
+        "The workflow includes multiple stages including job creation, status polling, external HTTP interaction, "
+        "JSON parsing, conditional logic branching, email notifications, and Graph API callbacks."
+    )
+
+        # Dynamic purpose summary based on Logic App name and tags
+    name_lower = logic_app_name.lower()
+
+    if "delegate" in name_lower and "mailbox" in name_lower:
+        purpose_summary = (
+            "This Logic App automates mailbox delegation by converting mailboxes and assigning access "
+            "via Azure Automation and Microsoft Graph."
+        )
+    elif "remotemailbox" in name_lower:
+        purpose_summary = (
+            "This Logic App manages remote mailbox provisioning, synchronizing attributes between hybrid environments."
+        )
+    elif "onboarding" in name_lower:
+        purpose_summary = (
+            "This Logic App handles employee onboarding workflows, including notification emails and provisioning tasks."
+        )
+    elif "manageremail" in name_lower or "sendtap" in name_lower:
+        purpose_summary = (
+            "This Logic App notifies managers of key user lifecycle events such as onboarding, terminations, or approvals."
+        )
+    elif "removegroups" in name_lower:
+        purpose_summary = (
+            "This Logic App automates group removal from Azure AD for lifecycle or security cleanup processes."
+        )
+    elif "createsharelink" in name_lower:
+        purpose_summary = (
+            "This Logic App provisions OneDrive shareable links for collaboration or external sharing requests."
+        )
+    elif "revokesession" in name_lower:
+        purpose_summary = (
+            "This Logic App revokes user sessions or tokens using Microsoft Graph API for security compliance."
+        )
+    elif tag_purpose and tag_purpose.lower() != "not defined":
+        purpose_summary = (
+            f"This Logic App supports automated workflows related to {tag_purpose.lower()}, "
+            "integrating connectors such as Graph, Automation, and Office365."
+        )
+    else:
+        purpose_summary = (
+            f"This Logic App named '{logic_app_name}' integrates Azure services like {', '.join(services)} "
+            "to support automated IT workflows."
+        )
+
+
+    security_summary = (
+        "Security is enforced using managed identities and OAuth-secured connectors. "
+        "All external calls are made over HTTPS. Microsoft Graph, Azure Automation, and Office 365 are accessed via secure bindings."
+    )
+
+    error_handling_summary = (
+        "The workflow incorporates condition blocks for both success and failure paths. "
+        "Failed executions trigger email notifications and webhook callbacks to Lifecycle systems."
+    )
+
+    integration_endpoints = [
+        "Azure Automation API: https://learn.microsoft.com/en-us/rest/api/automation/jobs",
+        "Office 365 Connector: https://learn.microsoft.com/en-us/connectors/office365/",
+        "Microsoft Graph API: https://learn.microsoft.com/en-us/graph/overview",
+        "Logic Apps Security: https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-securing-a-logic-app"
+    ]
+
+    doc = generate_document(
+        architecture, execution, flow_text, data_flow, hybrid_text, conditions,
+        overview_summary=overview_summary,
+        architecture_summary=architecture_summary,
+        execution_summary=execution_summary,
+        purpose_summary=purpose_summary,
+        security_summary=security_summary,
+        error_handling_summary=error_handling_summary,
+        integration_endpoints=integration_endpoints,
+        docx_template=docx_template
+    )
     doc.save(output_path)
     print("📄 Document saved to:", output_path)
