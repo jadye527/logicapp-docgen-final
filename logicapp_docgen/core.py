@@ -1,4 +1,3 @@
-
 import os
 import json
 import subprocess
@@ -158,15 +157,8 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
         )
 
 
-    security_summary = (
-        "Security is enforced using managed identities and OAuth-secured connectors. "
-        "All external calls are made over HTTPS. Microsoft Graph, Azure Automation, and Office 365 are accessed via secure bindings."
-    )
-
-    error_handling_summary = (
-        "The workflow incorporates condition blocks for both success and failure paths. "
-        "Failed executions trigger email notifications and webhook callbacks to Lifecycle systems."
-    )
+    security_summary = generate_security_summary_with_intro(logic_app, actions)
+    error_handling_summary = generate_error_handling_summary_enhanced(actions)
 
     integration_endpoints = [
         "Azure Automation API: https://learn.microsoft.com/en-us/rest/api/automation/jobs",
@@ -188,3 +180,111 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
     )
     doc.save(output_path)
     print("📄 Document saved to:", output_path)
+
+
+def collect_all_nested_actions(actions_dict):
+    all_actions = {}
+    def recurse(actions):
+        for k, v in actions.items():
+            all_actions[k] = v
+            if isinstance(v, dict):
+                for subkey in ["actions", "else", "case", "cases"]:
+                    sub = v.get(subkey)
+                    if isinstance(sub, dict):
+                        inner = sub.get("actions", sub) if "actions" in sub else sub
+                        if isinstance(inner, dict):
+                            recurse(inner)
+    recurse(actions_dict)
+    return all_actions
+
+def generate_security_summary_with_intro(arm_data, actions_dict):
+    identity_block = arm_data.get("identity", {})
+    identity_type_raw = identity_block.get("type", "").lower()
+    user_assigned_names_arm = list(identity_block.get("userAssignedIdentities", {}).keys()) if isinstance(identity_block.get("userAssignedIdentities"), dict) else []
+
+    nested_actions = collect_all_nested_actions(actions_dict)
+    uses_graph = False
+    uses_https = False
+    found_mailbox = None
+    user_assigned_from_actions = set()
+    system_assigned_detected_from_action = False
+
+    def scan(obj):
+        nonlocal uses_graph, uses_https, found_mailbox, system_assigned_detected_from_action
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k == "authentication" and isinstance(v, dict):
+                    id_val = v.get("identity", "")
+                    if "userAssignedIdentities" in id_val:
+                        user_assigned_from_actions.add(id_val.split("/")[-1])
+                    elif v.get("type", "").lower() == "managedserviceidentity" and "identity" not in v:
+                        system_assigned_detected_from_action = True
+                if k == "uri" and isinstance(v, str):
+                    if v.lower().startswith("https"):
+                        uses_https = True
+                    if "graph.microsoft.com" in v.lower():
+                        uses_graph = True
+                if k.lower() == "mailboxaddress" and isinstance(v, str):
+                    found_mailbox = v
+                if isinstance(v, (dict, list)):
+                    scan(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                scan(item)
+
+    scan(nested_actions)
+
+    if user_assigned_names_arm or user_assigned_from_actions:
+        intro = "This Logic App uses a user-assigned managed identity for authentication."
+    elif identity_type_raw == "systemassigned" or system_assigned_detected_from_action:
+        intro = "This Logic App uses a system-assigned managed identity to securely authenticate with Azure services and connectors."
+    else:
+        intro = "This Logic App secures its connectors using standard Azure mechanisms and encrypted API transport."
+
+    lines = [intro, "", "The Logic App uses the following mechanisms to secure integration:"]
+    if user_assigned_names_arm or user_assigned_from_actions:
+        all_names = set(user_assigned_names_arm) | user_assigned_from_actions
+        lines.append(f"• Uses User Assigned Managed Identity: {', '.join(all_names)}")
+    elif identity_type_raw == "systemassigned" or system_assigned_detected_from_action:
+        lines.append("• Uses a System Assigned Managed Identity for secure access.")
+    if uses_graph:
+        lines.append("• Calls Microsoft Graph API using managed identity.")
+    if found_mailbox:
+        lines.append(f"• Sends email from shared mailbox: {found_mailbox}.")
+    if uses_https:
+        lines.append("• All API connectors use HTTPS transport.")
+    return "\n".join(lines)
+
+def generate_error_handling_summary_enhanced(actions_dict):
+    nested_actions = collect_all_nested_actions(actions_dict)
+    has_condition = any("condition" in k.lower() for k in nested_actions)
+    has_parse_json = any("parse_json" in k.lower() for k in nested_actions)
+    has_compose = any("compose" in k.lower() for k in nested_actions)
+    has_failure_email = any("send" in k.lower() and "email" in k.lower() for k in nested_actions)
+
+    structured_automation_handling = False
+    for action in nested_actions.values():
+        if isinstance(action, dict):
+            inputs = action.get("inputs", {})
+            if isinstance(inputs, dict):
+                body = inputs.get("body", {})
+                if isinstance(body, dict):
+                    body_json = json.dumps(body).lower()
+                    if "status" in body_json or "errors" in body_json or "workflowrunid" in body_json:
+                        structured_automation_handling = True
+
+    if structured_automation_handling:
+        intro = "This Logic App implements structured error-handling logic using job output parsing, condition-based evaluation, and automated notification."
+    else:
+        intro = "Error handling in this Logic App is managed by lifecycle alerts within Microsoft Entra ID."
+
+    lines = [intro]
+    if has_condition:
+        lines.append("• Uses a Condition block to evaluate branching logic.")
+    if has_parse_json:
+        lines.append("• Parses output using Parse_JSON.")
+    if has_compose:
+        lines.append("• Composes error messages using Compose.")
+    if has_failure_email:
+        lines.append("• Sends failure notification email using Office 365.")
+    return "\n".join(lines)
