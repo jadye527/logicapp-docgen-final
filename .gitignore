@@ -8,3 +8,5 @@ output/
 .vscode/
 .DS_Store
 logicapp_docgen/__pycache__/core.cpython-310.pyc
+run-docker.ps1
+logicapp_docgen/__pycache__/core.cpython-310.pyc
