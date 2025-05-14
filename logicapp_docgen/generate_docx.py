@@ -54,7 +54,7 @@ def generate_document(
         doc.add_paragraph(execution_summary)
 
     doc.add_heading("1.5 Logic App Flow Diagram", level=2)
-    flow_png = os.path.join("output", "LogicAppFlow.png")
+    flow_png = os.path.join("output", f"{logic_app_name}_Flow.png")
     if os.path.exists(flow_png):
         doc.add_picture(flow_png, width=Inches(6.0))
         doc.paragraphs[-1].alignment = 1
@@ -67,7 +67,7 @@ def generate_document(
         doc.add_paragraph(item, style='Bullets')
 
     doc.add_heading("1.7 Hybrid Integration Diagram", level=2)
-    hybrid_png = os.path.join("output", "HybridIntegration.png")
+    hybrid_png = os.path.join("output", f"{logic_app_name}_Hybrid.png")
     if os.path.exists(hybrid_png):
         doc.add_picture(hybrid_png, width=Inches(6.0))
         doc.paragraphs[-1].alignment = 1

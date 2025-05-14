@@ -6,7 +6,13 @@ from docx.shared import Inches
 from graphviz import Digraph
 
 from logicapp_docgen.utils import extract_services
-from logicapp_docgen.diagram_builder import build_dot_with_arm_and_runbook, build_simple_dot_from_arm_final, render_flow_diagram_from_arm, build_hybridintegration_from_flow
+from logicapp_docgen.diagram_builder import (
+    build_dot_with_arm_and_runbook,
+    build_simple_dot_from_arm_final,
+    render_flow_diagram_from_arm,
+    build_hybridintegration_from_flow,
+    build_hybrid_with_o365_graph
+)
 from logicapp_docgen.runbook_utils import extract_runbook_label
 from logicapp_docgen.generate_docx import generate_document
 from logicapp_docgen import parser
@@ -71,17 +77,18 @@ def generate_document_from_arm(template_path, parameters_path, docx_template, ou
         else build_simple_dot_from_arm_final(actions, triggers, condition)
     )
 
-    flow_dot_path = os.path.join(output_dir, "LogicAppFlow.dot")
-    flow_png_path = os.path.join(output_dir, "LogicAppFlow.png")
+    flow_dot_path = os.path.join(output_dir, f"{logic_app_name}_Flow.dot")
+    flow_png_path = os.path.join(output_dir, f"{logic_app_name}_Flow.png")
 
     with open(flow_dot_path, "w") as f:
         f.write(dot)
     subprocess.run(["dot", "-Tpng", flow_dot_path, "-o", flow_png_path], check=True)
     print("✅ Flow diagram saved to:", flow_png_path)
 
-    hybrid_dot = build_hybridintegration_from_flow()
-    hybrid_dot_path = os.path.join(output_dir, "HybridIntegration.dot")
-    hybrid_png_path = os.path.join(output_dir, "HybridIntegration.png")
+    hybrid_dot = build_hybrid_with_o365_graph(logic_app_name)
+    hybrid_dot_path = os.path.join(output_dir, f"{logic_app_name}_Hybrid.dot")
+    hybrid_png_path = os.path.join(output_dir, f"{logic_app_name}_Hybrid.png")
+
     with open(hybrid_dot_path, "w") as f:
         f.write(hybrid_dot)
     subprocess.run(["dot", "-Tpng", hybrid_dot_path, "-o", hybrid_png_path], check=True)

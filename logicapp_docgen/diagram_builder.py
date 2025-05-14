@@ -1,4 +1,4 @@
-import re
+import re,os
 
 def sanitize_name(name):
     return re.sub(r"[^a-zA-Z0-9_]", "_", name)
@@ -460,6 +460,95 @@ def build_simple_dot_from_arm_final(actions, triggers, condition_detail):
         if lbl:
             line += f' [label="{lbl}"]'
         dot.append(f'    {line};')
+
+    dot.append("}")
+    return "\n".join(dot)
+
+def build_hybrid_with_o365_graph(logic_app_name):
+    flow_dot_path = f"output/{logic_app_name}_Flow.dot"
+    if not os.path.exists(flow_dot_path):
+        raise FileNotFoundError(f"Expected flow diagram not found: {flow_dot_path}")
+
+    with open(flow_dot_path, "r") as f:
+        dot_text = f.read()
+
+    import re
+
+    # Match the Runbook node and extract the first line of the label after "PowerShell - "
+    match = re.search(r'Runbook\s*\[label="(.*?) Runbook\\n', dot_text)
+    runbook_filename = match.group(1).strip() + ".ps1" if match else f"{logic_app_name}.ps1"
+
+    services_detected = {
+        "LogicApp": "logicapp" in dot_text,
+        "AzureAutomation": "automation" in dot_text,
+        "Powershell": "Runbook" in dot_text,
+        "ExchangeOnline": "o365" in dot_text,
+        "MicrosoftGraph": "graph" in dot_text,
+        "LifecycleSystem": "lifecycle" in dot_text
+    }
+
+    service_map = {
+        "LogicApp": ("Logic App", "#d0e0f0", "#666666", "AzureCloud"),
+        "AzureAutomation": ("Azure Automation", "#b3e6b3", "#00cc44", "AzureCloud"),
+        "Powershell": (runbook_filename, "#e6ccff", "#9966cc", "AzureCloud"),
+        "ExchangeOnline": ("Exchange Online", "#ffd699", "#ff9900", "Office365"),
+        "MicrosoftGraph": ("Microsoft Graph", "#ccddff", "#9999ff", "AzureCloud"),
+        "LifecycleSystem": ("Lifecycle Workflow System", "#cce6ff", "#3399ff", "Governance")
+    }
+
+    cluster_nodes = {
+        "AzureCloud": {"label": "Azure Cloud", "color": "#00cc44", "nodes": []},
+        "Office365": {"label": "Office 365", "color": "#ff9900", "nodes": []},
+        "Governance": {"label": "Entra Governance", "color": "#0078d4", "nodes": []},
+    }
+
+    for role, present in services_detected.items():
+        if present:
+            label, fill, border, cluster = service_map[role]
+            cluster_nodes[cluster]["nodes"].append(
+                f'{role} [label="{label}", fillcolor="{fill}", color="{border}"];'
+            )
+
+    edges = []
+    if services_detected["LifecycleSystem"] and services_detected["LogicApp"]:
+        edges.append(("LifecycleSystem", "LogicApp", ""))
+    if services_detected["LogicApp"] and services_detected["AzureAutomation"]:
+        edges.append(("LogicApp", "AzureAutomation", "Start Job"))
+    if services_detected["AzureAutomation"] and services_detected["Powershell"]:
+        edges.append(("AzureAutomation", "Powershell", ""))
+    if services_detected["Powershell"] and services_detected["LogicApp"]:
+        edges.append(("Powershell", "LogicApp", ""))
+    if services_detected["LogicApp"] and services_detected["ExchangeOnline"]:
+        edges.append(("LogicApp", "ExchangeOnline", ""))
+    if services_detected["LogicApp"] and services_detected["MicrosoftGraph"]:
+        edges.append(("LogicApp", "MicrosoftGraph", ""))
+    if services_detected["LogicApp"] and services_detected["LifecycleSystem"]:
+        edges.append(("LogicApp", "LifecycleSystem", "Completed"))
+
+    dot = [
+        "digraph HybridIntegration {",
+        "    rankdir=TB",
+        "    compound=true",
+        '    fontname="Segoe UI"',
+        "    fontsize=12",
+        '    node [fontname="Segoe UI" fontsize=10 shape=box style=filled]'
+    ]
+
+    for cid, info in cluster_nodes.items():
+        if info["nodes"]:
+            dot.append(f'    subgraph cluster_{cid} {{')
+            dot.append(f'        label="{info["label"]}"')
+            dot.append(f'        style=dashed')
+            dot.append(f'        color="{info["color"]}"')
+            dot.append('        fontcolor=black')
+            dot.extend([f'        {n}' for n in info["nodes"]])
+            dot.append("    }")
+
+    for src, tgt, label in edges:
+        line = f'    {src} -> {tgt}'
+        if label == "Completed":
+            line += f' [label="{label}"]'
+        dot.append(line + ";")
 
     dot.append("}")
     return "\n".join(dot)
