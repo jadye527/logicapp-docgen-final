@@ -27,6 +27,7 @@ This project generates professional, Word-based as-built documentation for Azure
 ## 📂 Input Files
 
 Place the following in your working directory:
+
 - `template.json` — ARM template for the Logic App
 - `parameters.json` — optional ARM parameters file
 - `template.docx` — Word template with styles
@@ -45,3 +46,39 @@ docker run -it ^
     --template "template.json" ^
     --parameters "parameters.json" ^
     --docx_template "template.docx"
+```
+
+📝 Output file will be named based on Logic App name (e.g., `output/SendOnboardingEmail.docx`)
+
+---
+
+## 🔧 Optional CLI Flags
+
+| Flag             | Description                          | Required |
+|------------------|--------------------------------------|----------|
+| `--template`      | ARM template file                    | ✅        |
+| `--parameters`    | Parameters file                      | ❌        |
+| `--docx_template` | Word `.docx` file                    | ✅        |
+| `--output`        | Override output `.docx` file name    | ❌        |
+
+---
+
+## 📸 Output Files
+
+- **Diagrams:** saved as `.png` in the `output/` directory
+- **Word Document:** default output to `output/{LogicAppName}.docx`
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repo
+2. Create a feature branch
+3. Submit a pull request with a description of changes
+4. Let’s improve Azure Logic App documentation together!
+
+---
+
+## 📄 License
+
+MIT License
